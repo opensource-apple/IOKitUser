@@ -7,16 +7,14 @@
 # and Makefile.postamble (both optional), and Makefile will include them.
 #
 
-NAME = pwr_mgt
+NAME = ups
 
 PROJECTVERSION = 2.8
 PROJECT_TYPE = Component
 
-HFILES = IOPMLib.h IOPMLibPrivate.h
+HFILES = IOUPSKeys.h
 
-CFILES = IOPMLib.c IOPMEnergyPrefs.c
-
-OTHERSRCS = Makefile.preamble Makefile pma.c sleep.c
+OTHERSRCS = Makefile.preamble Makefile
 
 
 MAKEFILEDIR = $(MAKEFILEPATH)/pb_makefiles
@@ -27,12 +25,7 @@ LIBS =
 DEBUG_LIBS = $(LIBS)
 PROF_LIBS = $(LIBS)
 
-PRIVATE_HEADERS = IOPMLibPrivate.h
-
-PUBLIC_HEADERS = IOPMLib.h
-
-PROJECT_HEADERS = IOPMLib.h
-
+PUBLIC_HEADERS = IOUPSKeys.h
 
 
 NEXTSTEP_BUILD_OUTPUT_DIR = /$(USER)/build/$(NAME)
