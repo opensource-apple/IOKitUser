@@ -28,7 +28,6 @@
 #include <mach/port.h>
 #include <mach/mach_init.h>
 #include <IOKit/OSMessageNotification.h>
-#include <System/libkern/OSCrossEndian.h>
 
 Boolean IODataQueueDataAvailable(IODataQueueMemory *dataQueue)
 {

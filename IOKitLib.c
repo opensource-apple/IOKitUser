@@ -29,7 +29,6 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreFoundation/CFMachPort.h>
 
-#include <libkern/OSCrossEndian.h>
 
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
@@ -706,6 +705,62 @@ OSGetNotificationFromMessage(
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#if __ppc__
+static void swapOSNotification(
+       OSNotificationHeader * header,
+       unsigned int leftOver )
+{
+    // Do some conditional byte-swapping if we're running a ppc binary, 
+    // under Rosetta on x86 HW.
+    // We expect this function to be called ONLY when running in Rosetta, not
+    // when running on native ppc HW.
+    
+    header->size = OSSwapInt32(header->size);
+    header->type = OSSwapInt32(header->type);
+    
+    int i;
+    for (i = 0; i < sizeof(header->reference) / sizeof(header->reference[0]); i++) {
+           header->reference[i] = OSSwapInt32(header->reference[i]);
+    }
+    
+    switch (header->type) {
+        case kIOServicePublishNotificationType:
+        case kIOServiceMatchedNotificationType:
+        case kIOServiceTerminatedNotificationType:
+               // only need to swap the reference field
+               break;
+        case kIOAsyncCompletionNotificationType:
+        {
+            IOAsyncCompletionContent *asyncHdr = 
+                    (IOAsyncCompletionContent *)(header + 1);
+            leftOver = (leftOver - sizeof(*asyncHdr)) / sizeof(void *);
+            
+            asyncHdr->result = OSSwapInt32(asyncHdr->result);
+            for (i = 0; i < leftOver; i++) {
+                asyncHdr->args[i] = OSSwapInt32(asyncHdr->args[i]);
+            }
+            break;
+        }
+        case kIOServiceMessageNotificationType:
+        {
+            IOServiceInterestContent *interestHdr = 
+                    (IOServiceInterestContent *)(header + 1);
+            leftOver = (leftOver - sizeof(*interestHdr) + 
+                    sizeof(interestHdr->messageArgument)) / sizeof(void *);
+            
+            interestHdr->messageType = OSSwapInt32(interestHdr->messageType);
+            for (i = 0; i < leftOver; i++) {
+                interestHdr->messageArgument[i] = 
+                        OSSwapInt32(interestHdr->messageArgument[i]);
+            }
+            break;
+        }
+        default:
+               printf("unknown OSNotificationHeader type %d\n", header->type);
+               break;
+    }
+}
+#endif
 
 
 void

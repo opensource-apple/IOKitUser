@@ -26,7 +26,6 @@
  *
  */
 
-#include <System/libkern/OSCrossEndian.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/hidsystem/IOHIDLib.h>
 #include <IOKit/iokitmig.h>

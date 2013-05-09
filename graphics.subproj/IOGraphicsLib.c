@@ -2565,6 +2565,7 @@ IOFBLookScaleBaseMode( IOFBConnectRef connectRef, IOFBDisplayModeDescription * s
                         IOFBDisplayModeDescription * scaleDesc )
 {
     Boolean found = false;
+    UInt32 h, v;
 
     DEBG(connectRef, "%ld: %ldx%ld %fHz scale %ldx%ld %08lx %08lx\n",
 	   scaleBase->timingInfo.appleTimingID,
@@ -2600,14 +2601,19 @@ IOFBLookScaleBaseMode( IOFBConnectRef connectRef, IOFBDisplayModeDescription * s
             continue;
 #endif
 
-        if (scaleBase->timingInfo.detailedInfo.v2.horizontalScaled
-         && (scaleBase->timingInfo.detailedInfo.v2.horizontalScaled 
-            != scaleBase->timingInfo.detailedInfo.v2.horizontalActive))
+	if (kIOScaleSwapAxes & connectRef->transform)
+	{
+	    h = scaleBase->timingInfo.detailedInfo.v2.verticalScaled;
+	    v = scaleBase->timingInfo.detailedInfo.v2.horizontalScaled;
+	}
+	else
+	{
+	    h = scaleBase->timingInfo.detailedInfo.v2.horizontalScaled;
+	    v = scaleBase->timingInfo.detailedInfo.v2.verticalScaled;
+	}
+        if (h && (h != scaleBase->timingInfo.detailedInfo.v2.horizontalActive))
             continue;
-
-        if (scaleBase->timingInfo.detailedInfo.v2.verticalScaled
-         && (scaleBase->timingInfo.detailedInfo.v2.verticalScaled 
-            != scaleBase->timingInfo.detailedInfo.v2.verticalActive))
+        if (v && (v != scaleBase->timingInfo.detailedInfo.v2.verticalActive))
             continue;
 
         if( scaleBase->timingInfo.detailedInfo.v2.horizontalActive
