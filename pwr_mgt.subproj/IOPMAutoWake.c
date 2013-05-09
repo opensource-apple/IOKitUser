@@ -22,6 +22,7 @@
 
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <SystemConfiguration/SCValidation.h>
+#include <IOKit/pwr_mgt/IOPM.h>
 #include "IOPMKeys.h"
 #include "IOPMLib.h"
 #include "IOPMLibPrivate.h"
@@ -30,7 +31,51 @@ enum {
     kIOPMMaxScheduledEntries = 1000
 };
 
-static CFComparisonResult compare_dates(CFDictionaryRef a1, CFDictionaryRef a2, void *c)
+// Forward decls
+
+static CFComparisonResult compare_dates(
+    CFDictionaryRef a1, 
+    CFDictionaryRef a2, 
+    void *c);
+static CFAbsoluteTime roundOffDate( 
+    CFAbsoluteTime time);
+static CFDictionaryRef _IOPMCreatePowerOnDictionary(
+    CFAbsoluteTime the_time, 
+    CFStringRef the_id, 
+    CFStringRef type);
+static bool inputsValid(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id, 
+    CFStringRef type);
+static bool addEntryAndSetPrefs(
+    SCPreferencesRef prefs, 
+    CFStringRef type, 
+    CFDictionaryRef package);
+static bool removeEntryAndSetPrefs(
+    SCPreferencesRef prefs, 
+    CFStringRef type, 
+    CFDictionaryRef package);
+static IOReturn _setRootDomainProperty(
+    CFStringRef key,
+    CFTypeRef val);
+static void tellClockController(
+    CFStringRef command,
+    CFDateRef power_date);
+IOReturn IOPMSchedulePowerEvent(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id, 
+    CFStringRef type);
+IOReturn IOPMCancelScheduledPowerEvent(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id, 
+    CFStringRef wake_or_restart);    
+CFArrayRef IOPMCopyScheduledPowerEvents( void );
+
+
+static CFComparisonResult compare_dates(
+    CFDictionaryRef a1, 
+    CFDictionaryRef a2,
+    void *c)
 {
     CFDateRef   d1, d2;
     a1 = isA_CFDictionary(a1);
@@ -53,10 +98,14 @@ static CFAbsoluteTime roundOffDate(CFAbsoluteTime time)
     return (CFAbsoluteTime)nearbyint((time - fmod(time, (double)30.0)));
 }
 
-static CFDictionaryRef _IOPMCreatePowerOnDictionary(CFAbsoluteTime the_time, CFStringRef the_id, CFStringRef type)
+static CFDictionaryRef 
+_IOPMCreatePowerOnDictionary(
+    CFAbsoluteTime the_time, 
+    CFStringRef the_id, 
+    CFStringRef type)
 {
     CFMutableDictionaryRef          d;
-    CFDateRef	                    the_date;
+    CFDateRef                       the_date;
 
     // make sure my_id is valid or NULL
     the_id = isA_CFString(the_id);        
@@ -74,7 +123,11 @@ static CFDictionaryRef _IOPMCreatePowerOnDictionary(CFAbsoluteTime the_time, CFS
     return d;
 }
 
-static bool inputsValid(CFDateRef time_to_wake, CFStringRef my_id, CFStringRef type)
+static bool 
+inputsValid(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id, 
+    CFStringRef type)
 {
     // NULL is an acceptable input for my_id
     if(!isA_CFDate(time_to_wake)) return false;
@@ -83,7 +136,11 @@ static bool inputsValid(CFDateRef time_to_wake, CFStringRef my_id, CFStringRef t
         CFEqual(type, CFSTR(kIOPMAutoPowerOn)) ||
         CFEqual(type, CFSTR(kIOPMAutoWakeOrPowerOn)) ||
         CFEqual(type, CFSTR(kIOPMAutoSleep)) ||
-        CFEqual(type, CFSTR(kIOPMAutoShutdown))))
+        CFEqual(type, CFSTR(kIOPMAutoShutdown)) ||
+        CFEqual(type, CFSTR(kIOPMAutoWakeScheduleImmediate)) ||
+        CFEqual(type, CFSTR(kIOPMAutoPowerScheduleImmediate)) ||
+        CFEqual(type, CFSTR(kIOPMAutoWakeRelativeSeconds)) ||
+        CFEqual(type, CFSTR(kIOPMAutoPowerRelativeSeconds))  ))
     {
         return false;
     }
@@ -91,7 +148,11 @@ static bool inputsValid(CFDateRef time_to_wake, CFStringRef my_id, CFStringRef t
     return true;
 }
 
-static bool addEntryAndSetPrefs(SCPreferencesRef prefs, CFStringRef type, CFDictionaryRef package)
+static bool 
+addEntryAndSetPrefs(
+    SCPreferencesRef prefs, 
+    CFStringRef type, 
+    CFDictionaryRef package)
 {
     CFArrayRef              arr = 0;
     CFMutableArrayRef       new_arr = 0;
@@ -134,7 +195,10 @@ exit:
 
 // returns true if an entry was successfully removed
 // false otherwise (entry wasn't found, or couldn't be removed)
-static bool removeEntryAndSetPrefs(SCPreferencesRef prefs, CFStringRef type, CFDictionaryRef package)
+static bool removeEntryAndSetPrefs(
+    SCPreferencesRef prefs, 
+    CFStringRef type, 
+    CFDictionaryRef package)
 {
     CFArrayRef                  arr = 0;
     CFMutableArrayRef           mut_arr = 0;
@@ -155,7 +219,7 @@ static bool removeEntryAndSetPrefs(SCPreferencesRef prefs, CFStringRef type, CFD
                             (CFComparatorFunction)compare_dates, 0);
     
     // did it return an index within the array?                        
-    if(0 <= i <= CFArrayGetCount(arr))
+    if( (0 <= i) && (i < CFArrayGetCount(arr)) )
     {
         cancelee = CFArrayGetValueAtIndex(arr, i);
         // is the date at that index equal to the date to cancel?
@@ -186,22 +250,225 @@ static bool removeEntryAndSetPrefs(SCPreferencesRef prefs, CFStringRef type, CFD
     return ret;
 }
 
+static IOReturn 
+_setRootDomainProperty(
+    CFStringRef                 key, 
+    CFTypeRef                   val) 
+{
+    io_iterator_t               it;
+    io_registry_entry_t         root_domain;
+    IOReturn                    ret;
 
-extern IOReturn IOPMSchedulePowerEvent(CFDateRef time_to_wake, CFStringRef my_id, CFStringRef type)
+    IOServiceGetMatchingServices(
+                    MACH_PORT_NULL, 
+                    IOServiceNameMatching("IOPMrootDomain"), 
+                    &it);
+
+    if(!it) return kIOReturnError;
+
+    root_domain = (io_registry_entry_t)IOIteratorNext(it);
+    if(!root_domain) return kIOReturnError;
+ 
+    ret = IORegistryEntrySetCFProperty(root_domain, key, val);
+
+    IOObjectRelease(root_domain);
+    IOObjectRelease(it);
+    return ret;
+}
+
+static void 
+tellClockController(
+    CFStringRef command, 
+    CFDateRef power_date)
+{
+    CFAbsoluteTime          now, wake_time;
+    CFGregorianDate         gmt_calendar;
+    CFTimeZoneRef           gmt_tz = NULL;
+    long int                diff_secs;
+    IOReturn                ret;
+    CFNumberRef             seconds_delta = NULL;
+    IOPMCalendarStruct      *cal_date = NULL;
+    CFMutableDataRef        date_data = NULL;
+
+    if(!command) goto exit;
+    
+    // We broadcast the wakeup time both as calendar date struct and as seconds.
+    //  * AppleRTC hardware needs the date in a structured calendar format
+    //  * ApplePMU & AppleSMU just need the date in seconds relative to now
+
+    // ******************** Calendar struct ************************************
+    
+    date_data = CFDataCreateMutable(NULL, sizeof(IOPMCalendarStruct));
+    CFDataSetLength(date_data, sizeof(IOPMCalendarStruct));
+    cal_date = (IOPMCalendarStruct *)CFDataGetBytePtr(date_data);
+    bzero(cal_date, sizeof(IOPMCalendarStruct));
+
+    if(!power_date) {
+
+        // Zeroed out calendar means "clear wakeup timer"
+
+    } else {
+
+        // A calendar struct stuffed with meaningful date and time
+        // schedules a wake or power event for then.
+
+        wake_time = CFDateGetAbsoluteTime(power_date);
+
+        gmt_tz = CFTimeZoneCreateWithTimeIntervalFromGMT(0, 0.0);
+        gmt_calendar = CFAbsoluteTimeGetGregorianDate(wake_time, gmt_tz);
+        CFRelease(gmt_tz);
+
+        cal_date->second    = lround(gmt_calendar.second);
+        cal_date->minute    = gmt_calendar.minute;
+        cal_date->hour      = gmt_calendar.hour;
+        cal_date->day       = gmt_calendar.day;
+        cal_date->month     = gmt_calendar.month;
+        cal_date->year      = gmt_calendar.year;
+    }
+    
+    if(CFEqual(command, CFSTR(kIOPMAutoWake))) {
+    
+        // Set AutoWake calendar property
+        ret = _setRootDomainProperty(
+                        CFSTR(kIOPMSettingAutoWakeCalendarKey), 
+                        date_data);
+
+    } else {
+
+        // Set AutoPower calendar property
+        ret = _setRootDomainProperty(
+                        CFSTR(kIOPMSettingAutoPowerCalendarKey), 
+                        date_data);    
+    }
+
+    if(kIOReturnSuccess != ret) {
+        goto exit;
+    }
+
+
+    // *************************** Seconds *************************************
+    // ApplePMU/AppleSMU seconds path
+    // Machine needs to be told alarm in seconds relative to current time.
+
+    if(!power_date) {
+        // NULL dictionary argument, clear wakeup timer
+        diff_secs = 0;
+    } else {
+        // Assume a well-formed entry since we've been doing thorough 
+        // type-checking in the find & purge functions
+        now = CFAbsoluteTimeGetCurrent();
+        wake_time = CFDateGetAbsoluteTime(power_date);
+        
+        diff_secs = lround(wake_time - now);
+        if(diff_secs < 0) goto exit;
+    }
+    
+    // Package diff_secs as a CFNumber
+    seconds_delta = CFNumberCreate(0, kCFNumberLongType, &diff_secs);
+    if(!seconds_delta) goto exit;
+    
+    if(CFEqual(command, CFSTR(kIOPMAutoWake))) {
+
+        // Set AutoWake seconds property
+        ret = _setRootDomainProperty(
+                        CFSTR(kIOPMSettingAutoWakeSecondsKey), 
+                        seconds_delta);
+
+    } else {
+
+        // Set AutoPower seconds property
+        ret = _setRootDomainProperty(
+                        CFSTR(kIOPMSettingAutoPowerSecondsKey), 
+                        seconds_delta);
+    }
+
+    if(kIOReturnSuccess != ret) {
+        goto exit;
+    }
+
+exit:
+    if(date_data) CFRelease(date_data);
+    if(seconds_delta) CFRelease(seconds_delta);
+    return;
+}
+
+
+IOReturn IOPMSchedulePowerEvent(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id,
+    CFStringRef type)
 {
     CFDictionaryRef         package = 0;
     SCPreferencesRef        prefs = 0;
-    IOReturn                ret = false;
-    CFArrayRef              tmp_wakeup_arr;
+    IOReturn                ret = kIOReturnError;
+    CFArrayRef              tmp_wakeup_arr = NULL;
     int                     total_count = 0;
     CFAbsoluteTime          abs_time_to_wake;
 
     //  verify inputs
     if(!inputsValid(time_to_wake, my_id, type))
-    {        
+    {
         ret = kIOReturnBadArgument;
         goto exit;
     }
+
+    if( CFEqual(type, CFSTR(kIOPMAutoWakeScheduleImmediate)) )
+    {
+
+        // Just send down the wake event immediately
+        tellClockController(CFSTR(kIOPMAutoWake), time_to_wake);
+        ret = kIOReturnSuccess;
+        goto exit;
+
+    } else if( CFEqual(type, CFSTR(kIOPMAutoPowerScheduleImmediate)) )
+    {
+
+        // Just send down the power on event immediately
+        tellClockController(CFSTR(kIOPMAutoPowerOn), time_to_wake);
+        ret = kIOReturnSuccess;
+        goto exit;
+    } else if( CFEqual( type, CFSTR( kIOPMAutoWakeRelativeSeconds) ) 
+            || CFEqual( type, CFSTR( kIOPMAutoPowerRelativeSeconds) ) )
+    {
+
+        // Immediately send down a relative seconds argument
+        // Seconds are relative to "right now" in CFAbsoluteTime
+        CFAbsoluteTime      now_secs;
+        CFAbsoluteTime      event_secs;
+        CFNumberRef         diff_secs = NULL;
+        int                 diff;
+
+        if(time_to_wake)
+        {
+            now_secs = CFAbsoluteTimeGetCurrent();
+            event_secs = CFDateGetAbsoluteTime(time_to_wake);
+            diff = (int)event_secs - (int)now_secs;
+            if(diff <= 0)
+            {
+                // Only positive diffs are meaningful
+                return kIOReturnIsoTooOld;
+            }
+        } else {
+            diff = 0;
+        }
+                
+        diff_secs = CFNumberCreate(0, kCFNumberIntType, &diff);
+        if(!diff_secs) goto exit;
+        
+        _setRootDomainProperty( type, (CFTypeRef)diff_secs );
+
+        CFRelease(diff_secs);
+
+        ret = kIOReturnSuccess;
+        goto exit;
+    }
+
+    /* From here onward, proceed with scheduling power events for the future
+     * by:
+     *   - Enqueueing them in com.apple.AutoWake.plist
+     *   - Committing the file to disk, where PowerManagement configd plugin
+     *         will immediately examine the file and setup upcoming events.
+     */
 
     abs_time_to_wake = CFDateGetAbsoluteTime(time_to_wake);
     if(abs_time_to_wake < (CFAbsoluteTimeGetCurrent() + 30.0))
@@ -210,7 +477,7 @@ extern IOReturn IOPMSchedulePowerEvent(CFDateRef time_to_wake, CFStringRef my_id
         goto exit;
     }
     
-    //  package the event in a CFDictionary
+    // Package the event in a CFDictionary
     package = _IOPMCreatePowerOnDictionary(abs_time_to_wake, my_id, type);
 
     // Open the prefs file and grab the current array
@@ -222,7 +489,7 @@ extern IOReturn IOPMSchedulePowerEvent(CFDateRef time_to_wake, CFStringRef my_id
         else ret = kIOReturnError;
         goto exit;
     }
-    
+
     // Examine number of entries currently in disk and bail if too many
     total_count = 0;
     tmp_wakeup_arr = isA_CFArray(SCPreferencesGetValue(prefs, CFSTR(kIOPMAutoPowerOn)));
@@ -262,14 +529,18 @@ extern IOReturn IOPMSchedulePowerEvent(CFDateRef time_to_wake, CFStringRef my_id
 
     ret = kIOReturnSuccess;
 
-    exit:
+exit:
     if(package) CFRelease(package);
     if(prefs) SCPreferencesUnlock(prefs);
     if(prefs) CFRelease(prefs);
     return ret;
 }
 
-extern IOReturn IOPMCancelScheduledPowerEvent(CFDateRef time_to_wake, CFStringRef my_id, CFStringRef wake_or_restart)
+
+IOReturn IOPMCancelScheduledPowerEvent(
+    CFDateRef time_to_wake, 
+    CFStringRef my_id, 
+    CFStringRef wake_or_restart)
 {
     CFDictionaryRef         package = 0;
     SCPreferencesRef        prefs = 0;
@@ -325,8 +596,7 @@ exit:
     return ret;
 }
 
-extern CFArrayRef IOPMCopyScheduledPowerEvents
-(void)
+CFArrayRef IOPMCopyScheduledPowerEvents(void)
 {
     SCPreferencesRef            prefs;
     CFArrayRef                  wake_arr, poweron_arr, sleep_arr, shutdown_arr;

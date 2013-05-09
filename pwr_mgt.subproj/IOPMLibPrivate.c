@@ -201,6 +201,7 @@ IOReturn IOPMCopyAssertionsByProcess(CFDictionaryRef *assertions_by_pid)
             if(0 != *endptr) continue;
             tmp_pid = CFNumberCreate(0, kCFNumberIntType, &the_pid);
             CFDictionarySetValue(ret_dict, tmp_pid, arr_vals[i]);
+            CFRelease(tmp_pid);
         }
         free(pid_keys);
         free(arr_vals);

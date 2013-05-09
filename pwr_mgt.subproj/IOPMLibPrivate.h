@@ -26,7 +26,6 @@
 #include <IOKit/IOKitLib.h>
 #include <CoreFoundation/CFArray.h>
 #include <IOKit/pwr_mgt/IOPMLibDefs.h>
-#include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
@@ -36,6 +35,37 @@ __BEGIN_DECLS
 // For internal use communicating between IOKitUser and PM configd
 // The preferences file
 #define kIOPMAutoWakePrefsPath      "com.apple.AutoWake.xml"
+
+// Type arguments to IOPMSchedulePowerEvent for internal use
+// These types are not cancellable, nor will they appear in any lists of
+// scheduled arguments from IOPMCopyScheduledEvents. These are not acceptable
+// types to pass as Repeating events.
+
+// The 'date' argument to IOPMSchedulePowerEvent is an absolute one for 
+// 'AutoWakeScheduleImmediate' and 'AutoPowerScheduleImmediate'. The effect
+// of these WakeImmediate and PowerOnImmediate types is to schedule the
+// wake/power event directly with the wake/power controller, ignoring all OS
+// queueing and management. This will override a previously scheduled wake event
+// by another application, should one exist. Recommended for testing only. 
+
+#define kIOPMAutoWakeScheduleImmediate      "WakeImmediate"
+#define kIOPMAutoPowerScheduleImmediate     "PowerOnImmediate"
+
+// The 'date' argument to IOPMSchedulePowerEvent is an relative one to 
+// "right now," for 'AutoWakeScheduleImmediate' and 'AutoPowerScheduleImmediate'
+//
+// e.g. In this case, we're setting the system to wake from sleep exactly 10
+// seconds after the system completes going to sleep. We're passing in a date
+// 10 seconds past "right now", but the wakeup controller interprets this as 
+// relative to sleep time.
+//
+//  d = CFDateCreate(0, CFAbsoluteGetCurrent() + 10.0);
+//  IOPMSchedulePowerEvent(d, CFSTR("SleepCycler"), 
+//                            CFSTR(kIOPMAutoWakeRelativeSeconds) );
+
+#define kIOPMAutoWakeRelativeSeconds        kIOPMSettingDebugWakeRelativeKey
+#define kIOPMAutoPowerRelativeSeconds       kIOPMSettingDebugPowerRelativeKey
+
 
 /**************************************************
 *

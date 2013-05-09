@@ -228,7 +228,8 @@ AVAILABLE_MAC_OS_X_VERSION_10_4_AND_LATER;
 	@result The resulting CFStringRef. This should be released by the caller. If there is no superclass, or a valid class name is not passed in, then NULL is returned.*/
 
 CFStringRef 
-IOObjectCopySuperclassForClass(CFStringRef classname);
+IOObjectCopySuperclassForClass(CFStringRef classname)
+AVAILABLE_MAC_OS_X_VERSION_10_4_AND_LATER;
 
 /*! @function CFStringRef IOObjectCopyBundleIdentifierForClass
     @abstract Return the bundle identifier of the given class.
@@ -237,7 +238,8 @@ IOObjectCopySuperclassForClass(CFStringRef classname);
 	@result The resulting CFStringRef. This should be released by the caller. If a valid class name is not passed in, then NULL is returned.*/
 
 CFStringRef 
-IOObjectCopyBundleIdentifierForClass(CFStringRef classname);
+IOObjectCopyBundleIdentifierForClass(CFStringRef classname)
+AVAILABLE_MAC_OS_X_VERSION_10_4_AND_LATER;
 
 /*! @function IOObjectConformsTo
     @abstract Performs an OSDynamicCast operation on an IOKit object.

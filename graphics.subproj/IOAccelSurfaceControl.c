@@ -27,6 +27,7 @@
 #include <CoreFoundation/CFNumber.h>
 #include <stdlib.h>
 
+
 IOReturn IOAccelFindAccelerator( io_service_t framebuffer,
                                 io_service_t * pAccelerator, UInt32 * pFramebufferIndex )
 {
@@ -182,13 +183,19 @@ IOReturn IOAccelDestroySurface( IOAccelConnect connect )
 	return kr;
 }
 
+
 IOReturn IOAccelSetSurfaceScale( IOAccelConnect connect, IOOptionBits options,
                                     IOAccelSurfaceScaling * scaling, UInt32 scalingSize )
 {
-	return io_connect_method_scalarI_structureI((io_connect_t) connect,
+	IOReturn result;
+
+	
+	result = io_connect_method_scalarI_structureI((io_connect_t) connect,
                 kIOAccelSurfaceSetScale,
                 (int *) &options, 1,
 		(char *) scaling, scalingSize);
+
+	return result;
 }
 
 
@@ -196,12 +203,18 @@ IOReturn IOAccelSetSurfaceFramebufferShape( IOAccelConnect connect, IOAccelDevic
                                             eIOAccelSurfaceShapeBits options, UInt32 framebufferIndex )
 {
 	int data[2];
-
+	int size;
+	IOReturn result;
+	
 	data[0] = options;
         data[1] = framebufferIndex;
 
-	return io_connect_method_scalarI_structureI((io_connect_t) connect, kIOAccelSurfaceSetShape,
-		data, 2, (char *) rgn, IOACCEL_SIZEOF_DEVICE_REGION(rgn));
+	size = IOACCEL_SIZEOF_DEVICE_REGION(rgn);
+	
+	result = io_connect_method_scalarI_structureI((io_connect_t) connect, kIOAccelSurfaceSetShape,
+		data, 2, (char *) rgn, size);
+		
+	return result;
 }
 
 IOReturn IOAccelSetSurfaceFramebufferShapeWithBacking( IOAccelConnect connect, IOAccelDeviceRegion *rgn,
@@ -222,21 +235,26 @@ IOReturn IOAccelSetSurfaceFramebufferShapeWithBackingAndLength( IOAccelConnect c
 {
         IOReturn err;
 	int data[5];
-
+	int size;
+	
 	data[0] = options;
         data[1] = framebufferIndex;
         data[2] = backing;
         data[3] = rowbytes;
         data[4] = backingLength;
 
+	size = IOACCEL_SIZEOF_DEVICE_REGION(rgn);
+
 	err = io_connect_method_scalarI_structureI((io_connect_t) connect, kIOAccelSurfaceSetShapeBackingAndLength,
-		data, 5, (char *) rgn, IOACCEL_SIZEOF_DEVICE_REGION(rgn));
+		data, 5, (char *) rgn, size);
 
         if ((kIOReturnUnsupported == err) || (kIOReturnBadArgument == err))
 	{
                 err = io_connect_method_scalarI_structureI((io_connect_t) connect, kIOAccelSurfaceSetShapeBacking,
-                        data, 4, (char *) rgn, IOACCEL_SIZEOF_DEVICE_REGION(rgn));
+                        data, 4, (char *) rgn, size);
 	}
+	
+	
 	return (err);
 }
 
@@ -264,6 +282,7 @@ IOReturn IOAccelReadLockSurface( IOAccelConnect connect, IOAccelSurfaceInformati
 	ret = io_connect_method_scalarI_structureO((io_connect_t) connect, kIOAccelSurfaceReadLock,
 		NULL, 0, (char *) info, (int *) &infoSize);
 
+
 	return ret;
 }
 
@@ -274,6 +293,7 @@ IOReturn IOAccelReadLockSurfaceWithOptions( IOAccelConnect connect, IOOptionBits
 
 	ret = io_connect_method_scalarI_structureO((io_connect_t) connect, kIOAccelSurfaceReadLockOptions,
 		 (int *) &options, 1, (char *) info, (int *) &infoSize);
+
 
 	return ret;
 }
@@ -360,9 +380,12 @@ IOReturn IOAccelFlushSurfaceOnFramebuffers( IOAccelConnect connect, IOOptionBits
 IOReturn IOAccelReadSurface( IOAccelConnect connect, IOAccelSurfaceReadData * parameters )
 {
 	int countio = 0;
+	IOReturn result;
+	
 
-	return io_connect_method_structureI_structureO((io_connect_t) connect, kIOAccelSurfaceRead,
+	result = io_connect_method_structureI_structureO((io_connect_t) connect, kIOAccelSurfaceRead,
 		(char *) parameters, sizeof( IOAccelSurfaceReadData), NULL, &countio);
 
+	return result;
 }
 

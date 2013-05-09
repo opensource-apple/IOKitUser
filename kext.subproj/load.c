@@ -7,6 +7,8 @@
 
 #include <libc.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -67,6 +69,11 @@
 #endif /* DEBUG */
 
 #endif /* not KERNEL */
+
+
+#ifndef KERNEL
+extern int errno;
+#endif
 
 /***************
 * FUNCTION PROTOS
@@ -1596,8 +1603,8 @@ kload_error kload_request_load_addresses(
     kload_error result = kload_error_none;
     int i;
     const char * user_response = NULL;  // must free
-    int scan_result;
-    unsigned int address;
+    char * scan_pointer = NULL;         // do not free
+    unsigned long address;
 
    /* We have to map all object files to get their CFBundleIdentifier
     * names.
@@ -1634,11 +1641,27 @@ kload_error kload_request_load_addresses(
             result = kload_error_unspecified;
             goto finish;
         }
-        scan_result = sscanf(user_response, "%x", &address);
-        if (scan_result < 1 || scan_result == EOF) {
+
+        errno = 0;
+        address = strtoul(user_response, &scan_pointer, 16);
+
+        if (address == ULONG_MAX && errno == ERANGE) {
+            kload_log_error("input '%s' too large" KNL, user_response);
+            result = kload_error_unspecified;
+            goto finish;
+        } else if (address == 0 && errno == EINVAL) {
+            kload_log_error("no address found in input '%s'" KNL,
+                user_response);
+            result = kload_error_unspecified;
+            goto finish;
+        } else if (*scan_pointer != '\0') {
+            kload_log_error(
+                "input '%s' not a plain hexadecimal address" KNL,
+                user_response);
             result = kload_error_unspecified;
             goto finish;
         }
+
         entry->loaded_address = address;
     }
 

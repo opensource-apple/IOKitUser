@@ -426,6 +426,7 @@
 				723853F0087F2CC800B36ABB,
 				723853F1087F2CC800B36ABB,
 				723853F2087F2CD500B36ABB,
+				7283AE9108DB6CBD009ED48F,
 				723853F3087F2CD500B36ABB,
 				723853F6087F2CE200B36ABB,
 			);
@@ -737,6 +738,7 @@
 				72385427087F2EEE00B36ABB,
 				72385428087F2EEE00B36ABB,
 				72385429087F2EEE00B36ABB,
+				7283AE9208DB6CBD009ED48F,
 			);
 			isa = PBXCopyFilesBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
@@ -831,6 +833,7 @@
 			dstSubfolderSpec = 16;
 			files = (
 				7238542C087F2F1100B36ABB,
+				7283AE9308DB6CD8009ED48F,
 				7238542D087F2F1100B36ABB,
 			);
 			isa = PBXCopyFilesBuildPhase;
@@ -1188,6 +1191,27 @@
 				ATTRIBUTES = (
 					Public,
 				);
+			};
+		};
+		7283AE9108DB6CBD009ED48F = {
+			fileEncoding = 30;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			name = IOPMDeprecated.h;
+			path = /System/Library/Frameworks/IOKit.framework/Versions/A/Headers/pwr_mgt/IOPMDeprecated.h;
+			refType = 0;
+			sourceTree = "<absolute>";
+		};
+		7283AE9208DB6CBD009ED48F = {
+			fileRef = 7283AE9108DB6CBD009ED48F;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		7283AE9308DB6CD8009ED48F = {
+			fileRef = 7283AE9108DB6CBD009ED48F;
+			isa = PBXBuildFile;
+			settings = {
 			};
 		};
 		72F0C069086C850C00C78B91 = {

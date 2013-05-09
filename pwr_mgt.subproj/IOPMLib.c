@@ -100,11 +100,13 @@ IOReturn IOPMSleepSystem ( io_connect_t fb )
 IOReturn IOPMCopyBatteryInfo( mach_port_t masterPort, CFArrayRef * oInfo )
 {
     io_registry_entry_t         root_domain;
-    io_registry_entry_t	        entry;
     IOReturn		            kr = kIOReturnUnsupported;
     
-    // SMU case
-    // Battery location is published under IOPMrootDomain
+    *oInfo = NULL;
+    
+    // ********************************************************************
+    // For PPC machines (with PMU), battery location is published under 
+    // IOPMrootDomain
     root_domain = IORegistryEntryFromPath( masterPort, 
                         kIOPowerPlane ":/IOPowerConnection/IOPMrootDomain");
     if(!root_domain) return kIOReturnUnsupported;
@@ -115,22 +117,58 @@ IOReturn IOPMCopyBatteryInfo( mach_port_t masterPort, CFArrayRef * oInfo )
     if(*oInfo) {
         // Successfully read battery info from IOPMrootDomain
         return kIOReturnSuccess;
-    } else {
-        // Attempt to read battery data from PMU-generated battery node
-        entry = IORegistryEntryFromPath( masterPort,
-                                         kIODeviceTreePlane ":mac-io/battery");
-        if( !entry) entry = IORegistryEntryFromPath( masterPort,
-                                         kIODeviceTreePlane ":mac-io/via-pmu/battery");
-        if(entry) 
-        {
-            *oInfo = IORegistryEntryCreateCFProperty( entry, CFSTR(kIOBatteryInfoKey),
-                            kCFAllocatorDefault, kNilOptions);
-            IOObjectRelease(entry);
-        }
-        if( *oInfo)
-            kr = kIOReturnSuccess;
-        return kr;
+    } 
+    
+    
+    // ********************************************************************
+    // For non-PMU based batteries with IOPMPowerSource conforming classes
+    // Scan IORegistry for IOPMPowerSource nodes with IOLegacyBatteryInfo
+    // - Toss all IOLegacyBatteryInfo dictionaries into an OSArray
+    int                     batt_count = 0;
+    io_registry_entry_t     battery;
+    io_iterator_t           ioreg_batteries;
+    CFMutableArrayRef       legacyArray = CFArrayCreateMutable( 
+                                kCFAllocatorDefault, 1, &kCFTypeArrayCallBacks);
+
+    if(!legacyArray) return kIOReturnNoMemory;
+    
+    kr = IOServiceGetMatchingServices( 
+                    MACH_PORT_NULL, 
+                    IOServiceMatching("IOPMPowerSource"), 
+                    &ioreg_batteries);
+    if(KERN_SUCCESS != kr) {
+        CFRelease(legacyArray);
+        return kIOReturnError;
     }
+    
+    while( battery = (io_registry_entry_t)IOIteratorNext(ioreg_batteries) )
+    {
+        CFDictionaryRef     legacyDict;
+        
+        legacyDict = IORegistryEntryCreateCFProperty( battery, 
+                                CFSTR(kIOPMPSLegacyBatteryInfoKey),
+                                kCFAllocatorDefault,
+                                0);
+
+        if(!legacyDict) continue;
+
+        batt_count++;
+        CFArrayAppendValue(legacyArray, legacyDict);
+        CFRelease(legacyDict);        
+        IOObjectRelease(battery);
+    }
+    IOObjectRelease(ioreg_batteries);
+    
+    if(batt_count > 0) {
+        *oInfo = legacyArray;
+    } else {
+        CFRelease(legacyArray);
+
+        // Returns kIOReturnUnsupported if no batteries found
+        return kIOReturnUnsupported;
+    }
+
+    return kIOReturnSuccess;
 }
 
 

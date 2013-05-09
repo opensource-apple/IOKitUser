@@ -29,6 +29,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreFoundation/CFMachPort.h>
 
+#include <libkern/OSCrossEndian.h>
+
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/IOKitServer.h>
@@ -799,14 +801,6 @@ IODispatchCalloutFromCFMessage(CFMachPortRef port, void *_msg, CFIndex size, voi
 
     leftOver = msg->msgh_size - (((vm_address_t) (header + 1)) - ((vm_address_t) msg));
 
-#if __ppc__
-    // If this is ppc code running under Rosetta over an x86 kernel,
-    // we may need to do some byte swapping. The magic cookie in the
-    // inline asm makes Rosetta ignore this branch command.
-    asm volatile ("b L_SkipSwap_label \n .long 0x14400004");
-    swapOSNotification(header, leftOver);
-    asm volatile ("L_SkipSwap_label:");
-#endif
 
     // remote port is the notification (an iterator_t) that fired
     notifier = msg->msgh_remote_port;
@@ -821,6 +815,7 @@ IODispatchCalloutFromCFMessage(CFMachPortRef port, void *_msg, CFIndex size, voi
 	    deliver = false;
 	}
     }
+
     if(deliver)
     {
       switch( header->type )
@@ -1000,8 +995,24 @@ IOServiceOpen(
 	unsigned int	type,
 	io_connect_t  *	connect )
 {
-    return( io_service_open( service,
-	owningTask, type, connect ));
+    kern_return_t	kr;
+    kern_return_t	result;
+
+    kr = io_service_open_extended( service,
+	owningTask, type, NDR_record, NULL, 0, &result, connect );
+
+#if 1
+    if (MIG_BAD_ID == kr)
+    {
+	kr = io_service_open(service, owningTask, type, connect);
+	result = kr;
+    }
+#endif
+
+    if (KERN_SUCCESS == kr)
+        kr = result;
+
+    return (kr);
 }
 
 kern_return_t
@@ -1595,6 +1606,8 @@ IORegistryEntryGetProperty(
 	io_struct_inband_t	buffer,
 	unsigned int	      * size )
 {
+
+
     return( io_registry_entry_get_property_bytes( entry, (char *) name,
 						  buffer, size ));
 }
