@@ -77,6 +77,7 @@
 #define kACReduceBrightness             0
 #define kACDisplaySleepUsesDim          1
 #define kACMobileMotionModule           1
+#define kACGPUSavings                   0
 
 /*
  *      Battery
@@ -95,6 +96,7 @@
 #define kBatteryReduceBrightness        1
 #define kBatteryDisplaySleepUsesDim     1
 #define kBatteryMobileMotionModule      1
+#define kBatteryGPUSavings              1
 
 /*
  *      UPS
@@ -113,11 +115,12 @@
 #define kUPSReduceBrightness             kACReduceBrightness
 #define kUPSDisplaySleepUsesDim          kACDisplaySleepUsesDim
 #define kUPSMobileMotionModule           kACMobileMotionModule
+#define kUPSGPUSavings                   kACGPUSavings
 
 #define kIOHibernateDefaultFile     "/var/vm/sleepimage"
 enum { kIOHibernateMinFreeSpace     = 750*1024ULL*1024ULL }; /* 750Mb */
 
-#define kIOPMNumPMFeatures      15
+#define kIOPMNumPMFeatures      16
 
 static char *energy_features_array[kIOPMNumPMFeatures] = {
     kIOPMDisplaySleepKey, 
@@ -134,7 +137,8 @@ static char *energy_features_array[kIOPMNumPMFeatures] = {
     kIOPMReduceBrightnessKey,
     kIOPMDisplaySleepUsesDimKey,
     kIOPMMobileMotionModuleKey,
-    kIOHibernateModeKey
+    kIOHibernateModeKey,
+    kIOPMGPUMUXKey
 };
 
 static const unsigned int battery_defaults_array[] = {
@@ -152,7 +156,8 @@ static const unsigned int battery_defaults_array[] = {
     kBatteryReduceBrightness,
     kBatteryDisplaySleepUsesDim,
     kBatteryMobileMotionModule,
-    kIOHibernateModeOn | kIOHibernateModeSleep  /* safe sleep mode */
+    kIOHibernateModeOn | kIOHibernateModeSleep,  /* safe sleep mode */
+    kBatteryGPUSavings
 };
 
 static const unsigned int ac_defaults_array[] = {
@@ -170,7 +175,8 @@ static const unsigned int ac_defaults_array[] = {
     kACReduceBrightness,
     kACDisplaySleepUsesDim,
     kACMobileMotionModule,
-    kIOHibernateModeOn | kIOHibernateModeSleep  /* safe sleep mode */
+    kIOHibernateModeOn | kIOHibernateModeSleep,  /* safe sleep mode */
+    kACGPUSavings
 };
 
 static const unsigned int ups_defaults_array[] = {
@@ -188,7 +194,8 @@ static const unsigned int ups_defaults_array[] = {
     kUPSReduceBrightness,
     kUPSDisplaySleepUsesDim,
     kUPSMobileMotionModule,
-    kIOHibernateModeOn | kIOHibernateModeSleep  /* safe sleep mode */
+    kIOHibernateModeOn | kIOHibernateModeSleep,  /* safe sleep mode */
+    kUPSGPUSavings
 };
 
 /* IOPMRootDomain property keys for default settings
@@ -232,6 +239,7 @@ typedef struct {
     unsigned int        fWakeOnACChange;
     unsigned int        fDisplaySleepUsesDimming;
     unsigned int        fMobileMotionModule;
+    unsigned int        fGPU;
 } IOPMAggressivenessFactors;
 
 Boolean _IOReadBytesFromFile(CFAllocatorRef alloc, const char *path, void **bytes,
@@ -618,10 +626,20 @@ static int sendEnergySettingsToKernel(
     // Defaults to on
     if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMMobileMotionModuleKey), providing_power))
     {
-        type = 7;   // kPMMotionSensor defined in Tiger
-        IOPMSetAggressiveness(PM_connection, type, p->fMobileMotionModule);
+        ret = IORegistryEntrySetCFProperty(PMRootDomain, 
+                                    CFSTR(kIOPMSettingMobileMotionModuleKey), 
+                                    (p->fMobileMotionModule?number1:number0));            
     }
-
+    
+    /*
+     * GPU
+     */
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMGPUMUXKey), providing_power))
+    {
+        ret = IORegistryEntrySetCFProperty(PMRootDomain, 
+                                    CFSTR("GPUSavings"),  /* CFSTR(kIOPMGPUMUXKey), */
+                                    (p->fGPU?number1:number0));            
+    }
 
     CFDictionaryRef dict = NULL;
     if((dict = CFDictionaryGetValue(System, prof)) )
@@ -730,6 +748,9 @@ static int getAggressivenessFactorsFromProfile(
     GetAggressivenessValue(CFDictionaryGetValue(p, CFSTR(kIOPMMobileMotionModuleKey)),
                            kCFNumberSInt32Type, &agg->fMobileMotionModule);    
 
+    // GPU
+    GetAggressivenessValue(CFDictionaryGetValue(p, CFSTR(kIOPMGPUMUXKey)),
+                           kCFNumberSInt32Type, &agg->fGPU);
     return 0;
 }
 
@@ -753,6 +774,12 @@ supportedNameForPMName( CFStringRef pm_name )
     {
         return CFSTR("MobileMotionModule");
     }
+
+    if(CFEqual(pm_name, CFSTR(kIOPMGPUMUXKey)))
+    {
+        return CFSTR("GPUSavings");
+    }
+
 
     if( CFEqual(pm_name, CFSTR(kIOHibernateModeKey))
         || CFEqual(pm_name, CFSTR(kIOHibernateFreeRatioKey))

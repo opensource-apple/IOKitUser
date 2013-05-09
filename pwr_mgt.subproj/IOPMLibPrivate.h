@@ -108,6 +108,8 @@ __BEGIN_DECLS
 #define kIOPMDisplaySleepUsesDimKey                     "Display Sleep Uses Dim"
 // units - CFNumber 0/1
 #define kIOPMMobileMotionModuleKey                      "Mobile Motion Module"
+// units - CFNumber 0/1
+#define kIOPMGPUMUXKey                                  "GPUMUX"
 
 typedef void (*IOPMPrefsCallbackType)(void *context);
 

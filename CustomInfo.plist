@@ -11,7 +11,7 @@
 	<key>CFBundleExecutable</key>
 	<string>IOKit</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.4.6</string>
+	<string>1.4.8</string>
 	<key>CFBundlePackageType</key>
 	<string>FMWK</string>
 	<key>CFBundleSignature</key>
