@@ -28,6 +28,7 @@
 #include <mach/port.h>
 #include <mach/mach_init.h>
 #include <IOKit/OSMessageNotification.h>
+#include <System/libkern/OSCrossEndian.h>
 
 Boolean IODataQueueDataAvailable(IODataQueueMemory *dataQueue)
 {
@@ -44,10 +45,17 @@ IODataQueueEntry *IODataQueuePeek(IODataQueueMemory *dataQueue)
         UInt32              headOffset  = dataQueue->head;
         UInt32              queueSize   = dataQueue->queueSize;
 
+        ROSETTA_ONLY(
+            headOffset  = OSSwapInt32(headOffset);
+            queueSize   = OSSwapInt32(queueSize);
+        );
         
         head 		= (IODataQueueEntry *)((char *)dataQueue->queue + headOffset);
         headSize 	= head->size;
         
+        ROSETTA_ONLY(
+            headSize    = OSSwapInt32(headSize);
+        );
         
 		// Check if there's enough room before the end of the queue for a header.
         // If there is room, check if there's enough room to hold the header and
@@ -80,10 +88,17 @@ IOReturn IODataQueueDequeue(IODataQueueMemory *dataQueue, void *data, UInt32 *da
             UInt32              headOffset  = dataQueue->head;
             UInt32              queueSize   = dataQueue->queueSize;
             
+            ROSETTA_ONLY(
+                headOffset  = OSSwapInt32(headOffset);
+                queueSize   = OSSwapInt32(queueSize);
+            );
 
             head 		= (IODataQueueEntry *)((char *)dataQueue->queue + headOffset);
             headSize 	= head->size;
             
+            ROSETTA_ONLY(
+                headSize = OSSwapInt32(headSize);
+            );
             
             // we wraped around to beginning, so read from there
 			// either there was not even room for the header
@@ -93,6 +108,9 @@ IOReturn IODataQueueDequeue(IODataQueueMemory *dataQueue, void *data, UInt32 *da
                 entry       = dataQueue->queue;
                 entrySize   = entry->size;
 
+                ROSETTA_ONLY(
+                    entrySize = OSSwapInt32(entrySize);
+                );
 
                 newHeadOffset = entrySize + DATA_QUEUE_ENTRY_HEADER_SIZE;
             // else it is at the end
@@ -100,11 +118,17 @@ IOReturn IODataQueueDequeue(IODataQueueMemory *dataQueue, void *data, UInt32 *da
                 entry = head;
                 entrySize = entry->size;
 
+                ROSETTA_ONLY(
+                    entrySize = OSSwapInt32(entrySize);
+                );
 
                 newHeadOffset = headOffset + entrySize + DATA_QUEUE_ENTRY_HEADER_SIZE;
             }
         }
 
+        ROSETTA_ONLY(
+            newHeadOffset = OSSwapInt32(newHeadOffset);
+        );
         
         if (entry) {
             if (data) {

@@ -29,6 +29,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreFoundation/CFMachPort.h>
 
+#include <libkern/OSCrossEndian.h>
 
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
@@ -800,6 +801,13 @@ IODispatchCalloutFromCFMessage(CFMachPortRef port, void *_msg, CFIndex size, voi
 
     leftOver = msg->msgh_size - (((vm_address_t) (header + 1)) - ((vm_address_t) msg));
 
+#if __ppc__
+    // If this is ppc code running under Rosetta over an x86 kernel,
+    // we may need to do some byte swapping. The magic cookie in the
+    // inline asm makes Rosetta ignore this branch command.
+    IF_ROSETTA()
+	swapOSNotification(header, leftOver);
+#endif
 
     // remote port is the notification (an iterator_t) that fired
     notifier = msg->msgh_remote_port;
@@ -1606,6 +1614,121 @@ IORegistryEntryGetProperty(
 	unsigned int	      * size )
 {
 
+#if __ppc__
+    // If this is ppc code running under Rosetta over an x86 kernel,
+    // we may need to do some byte swapping. The magic cookie in the
+    // inline asm makes Rosetta ignore this branch command.
+    IF_ROSETTA()
+    {
+	IOReturn ret = kIOReturnSuccess;
+	do
+	{
+	    CFTypeID	 type;
+	    CFTypeRef    obj;
+	    CFStringRef  key;
+	    CFDataRef    dataBuffer = 0;
+	    const void * bytes = 0;
+	    size_t       len = 0;
+	    bool	 addNull = false;
+	    
+	    key = CFStringCreateWithCString (kCFAllocatorDefault, name, kCFStringEncodingUTF8);
+	    if (!key)
+	    {
+		ret = kIOReturnNoMemory;
+		break;
+	    }
+	    obj = IORegistryEntryCreateCFProperty(entry, key, kCFAllocatorDefault, kNilOptions);
+	    CFRelease(key);
+	    if (!obj)
+	    {
+		ret = kIOReturnNoResources;
+		break;
+	    }
+
+	    type = CFGetTypeID(obj);
+
+	    if (type == CFDataGetTypeID())
+	    {
+		len = CFDataGetLength(obj);
+		bytes = CFDataGetBytePtr(obj);
+	    }
+	    else if (type == CFStringGetTypeID())
+	    {
+		dataBuffer = CFStringCreateExternalRepresentation(kCFAllocatorDefault, obj, kCFStringEncodingUTF8, 0);	
+		if (!dataBuffer)
+		    dataBuffer = CFStringCreateExternalRepresentation(kCFAllocatorDefault, obj, kCFStringEncodingUTF8, (UInt8)'?');
+		if (dataBuffer)
+		{
+		    len = CFDataGetLength(dataBuffer);
+		    bytes = CFDataGetBytePtr(dataBuffer);
+		    addNull = true;
+		}
+		else
+		    ret = kIOReturnNoResources;
+	    }
+	    else if (type == CFBooleanGetTypeID())
+	    {
+		if (CFBooleanGetValue(obj))
+		{
+		    len   = sizeof("Yes");
+		    bytes = "Yes";
+		}
+		else
+		{
+		    len   = sizeof("No");
+		    bytes = "No";
+		}
+	    }
+	    else if (type == CFNumberGetTypeID())
+	    {
+		CFNumberType numType;
+		switch (*size)
+		{
+		    case 1:
+			numType = kCFNumberSInt8Type;
+			break;
+		    case 2:
+			numType = kCFNumberSInt16Type;
+			break;
+		    case 4:
+			numType = kCFNumberSInt32Type;
+			break;
+		    case 8:
+			numType = kCFNumberSInt64Type;
+			break;
+		    default:
+			ret = kIOReturnBadArgument;
+			break;
+		}
+		if (kIOReturnSuccess == ret)
+		{
+		    if (!CFNumberGetValue(obj, numType, buffer))
+			ret = kIOReturnNoResources;
+		}
+	    }
+	    else
+		ret = kIOReturnBadArgument;
+
+	    if (bytes)
+	    {
+		if (*size < (len + addNull))
+		    ret = kIOReturnIPCError;
+		else
+		{
+		    bcopy(bytes, buffer, len);
+		    if (addNull)
+			buffer[len++] = 0;
+		    *size = len;
+		}
+	    }
+	    if (dataBuffer)
+		CFRelease(dataBuffer);
+	    CFRelease(obj);
+	}
+	while (false);
+	return (ret);
+    }
+#endif
 
     return( io_registry_entry_get_property_bytes( entry, (char *) name,
 						  buffer, size ));
