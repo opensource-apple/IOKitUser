@@ -55,6 +55,18 @@ static IOReturn _pm_disconnect(mach_port_t connection)
     return kIOReturnSuccess;
 }
 
+static bool _supportedAssertion(CFStringRef assertion)
+{
+    if( CFEqual(assertion, kIOPMCPUBoundAssertion)
+        || CFEqual(assertion, kIOPMInflowDisableAssertion)
+        || CFEqual(assertion, kIOPMChargeInhibitAssertion) )
+    {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 
 IOReturn IOPMAssertionCreate(CFStringRef  assertion, int level, IOPMAssertionID *assertion_id)
 {
@@ -71,8 +83,7 @@ IOReturn IOPMAssertionCreate(CFStringRef  assertion, int level, IOPMAssertionID 
     *assertion_id = -1;
 
     // The only supported assertion is kIOPMCPUBoundAssertion
-    if(kCFCompareEqualTo != 
-       CFStringCompare(assertion, kIOPMCPUBoundAssertion, 0)) 
+    if(!_supportedAssertion(assertion))
     {
         return kIOReturnUnsupported;
     }

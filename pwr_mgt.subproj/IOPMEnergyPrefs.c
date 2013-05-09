@@ -49,8 +49,8 @@
 #include <sys/mount.h>
 
 
-#define kIOPMPrefsPath			    CFSTR("com.apple.PowerManagement.xml")
-#define kIOPMAppName			    CFSTR("PowerManagement configd")
+#define kIOPMPrefsPath              CFSTR("com.apple.PowerManagement.xml")
+#define kIOPMAppName                CFSTR("PowerManagement configd")
 
 // 2936060
 #ifndef kIODisplayDimAggressiveness
@@ -63,7 +63,7 @@
  * 
  *      AC
  */
-#define kACMinutesToDim	                5
+#define kACMinutesToDim                 5
 #define kACMinutesToSpin                10
 #define kACMinutesToSleep               10
 #define kACWakeOnRing                   0
@@ -87,7 +87,7 @@
 #define kBatteryWakeOnRing              0
 #define kBatteryAutomaticRestart        0
 #define kBatteryWakeOnLAN               0
-#define kBatteryReduceProcessorSpeed	0
+#define kBatteryReduceProcessorSpeed    0
 #define kBatteryDynamicPowerStep        1
 #define kBatterySleepOnPowerButton      0
 #define kBatteryWakeOnClamshell         1
@@ -99,7 +99,7 @@
 /*
  *      UPS
  */
-#define kUPSMinutesToDim	         kACMinutesToDim
+#define kUPSMinutesToDim             kACMinutesToDim
 #define kUPSMinutesToSpin                kACMinutesToSpin
 #define kUPSMinutesToSleep               kACMinutesToSleep
 #define kUPSWakeOnRing                   kACWakeOnRing
@@ -114,10 +114,10 @@
 #define kUPSDisplaySleepUsesDim          kACDisplaySleepUsesDim
 #define kUPSMobileMotionModule           kACMobileMotionModule
 
-#define kIOHibernateDefaultFile		"/var/vm/sleepimage"
-enum { kIOHibernateMinFreeSpace 	= 750*1024ULL*1024ULL }; /* 750Mb */
+#define kIOHibernateDefaultFile     "/var/vm/sleepimage"
+enum { kIOHibernateMinFreeSpace     = 750*1024ULL*1024ULL }; /* 750Mb */
 
-#define kIOPMNumPMFeatures		15
+#define kIOPMNumPMFeatures      15
 
 static char *energy_features_array[kIOPMNumPMFeatures] = {
     kIOPMDisplaySleepKey, 
@@ -205,6 +205,12 @@ static const unsigned int ups_defaults_array[] = {
 #define kCheetahWakeForNetworkAccessKey         CFSTR("WakeForNetworkAdministrativeAccess")
 #define kCheetahWakeOnRingKey                   CFSTR("WakeOnRing")
 
+// Supported Feature bitfields for IOPMrootDomain Supported Features
+enum {
+    kIOPMSupportedOnAC      = 1<<0,
+    kIOPMSupportedOnBatt    = 1<<1,
+    kIOPMSupportedOnUPS     = 1<<2
+};
 
 // Forwards
 static CFArrayRef       _createDefaultSystemProfiles();
@@ -215,10 +221,10 @@ static CFArrayRef       _createDefaultSystemProfiles();
  * The form of data that the kernel understands.
  */
 typedef struct {
-    unsigned int 		fMinutesToDim;
-    unsigned int 		fMinutesToSpin;
-    unsigned int 		fMinutesToSleep;
-    unsigned int		fWakeOnLAN;
+    unsigned int        fMinutesToDim;
+    unsigned int        fMinutesToSpin;
+    unsigned int        fMinutesToSleep;
+    unsigned int        fWakeOnLAN;
     unsigned int        fWakeOnRing;
     unsigned int        fAutomaticRestart;
     unsigned int        fSleepOnPowerButton;
@@ -229,16 +235,16 @@ typedef struct {
 } IOPMAggressivenessFactors;
 
 Boolean _IOReadBytesFromFile(CFAllocatorRef alloc, const char *path, void **bytes,
-				CFIndex *length, CFIndex maxLength);
+                CFIndex *length, CFIndex maxLength);
 
 static int getDefaultEnergySettings(CFMutableDictionaryRef sys)
 {
-    CFMutableDictionaryRef 	batt = NULL;
-    CFMutableDictionaryRef 	ac = NULL;
-    CFMutableDictionaryRef 	ups = NULL;
-    int			i;
-    CFNumberRef		val;
-    CFStringRef		key;
+    CFMutableDictionaryRef  batt = NULL;
+    CFMutableDictionaryRef  ac = NULL;
+    CFMutableDictionaryRef  ups = NULL;
+    int             i;
+    CFNumberRef     val;
+    CFStringRef     key;
 
 
     batt=(CFMutableDictionaryRef)CFDictionaryGetValue(sys, CFSTR(kIOPMBatteryPowerKey));
@@ -305,14 +311,8 @@ static int getDefaultEnergySettings(CFMutableDictionaryRef sys)
 
 static io_registry_entry_t  getPMRootDomainRef(void)
 {
-    io_registry_entry_t		    registry_entry;
-    io_iterator_t		        tmp;
-    
-    IOServiceGetMatchingServices(kIOMasterPortDefault, IOServiceNameMatching("IOPMrootDomain"), &tmp);
-    registry_entry = IOIteratorNext(tmp);
-    IOObjectRelease(tmp);
-    
-    return registry_entry;    
+    return IOServiceGetMatchingService( kIOMasterPortDefault, 
+                                IOServiceNameMatching("IOPMrootDomain"));
 }
 
 static int 
@@ -566,14 +566,14 @@ static int sendEnergySettingsToKernel(
     }
     
     // Display Sleep Uses Dim
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMDisplaySleepUsesDimKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMDisplaySleepUsesDimKey), providing_power))
     {
         type = kIODisplayDimAggressiveness;
         err = IOPMSetAggressiveness(PM_connection, type, p->fDisplaySleepUsesDimming);
     }    
     
     // Wake On Ring
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnRingKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnRingKey), providing_power))
     {
         ret = IORegistryEntrySetCFProperty(PMRootDomain, 
                                     CFSTR(kIOPMSettingWakeOnRingKey), 
@@ -581,7 +581,7 @@ static int sendEnergySettingsToKernel(
     }
     
     // Automatic Restart On Power Loss, aka FileServer mode
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMRestartOnPowerLossKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMRestartOnPowerLossKey), providing_power))
     {
         ret = IORegistryEntrySetCFProperty(PMRootDomain, 
                                     CFSTR(kIOPMSettingRestartOnPowerLossKey), 
@@ -589,7 +589,7 @@ static int sendEnergySettingsToKernel(
     }
     
     // Wake on change of AC state -- battery to AC or vice versa
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnACChangeKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnACChangeKey), providing_power))
     {
         ret = IORegistryEntrySetCFProperty(PMRootDomain, 
                                     CFSTR(kIOPMSettingWakeOnACChangeKey), 
@@ -598,7 +598,7 @@ static int sendEnergySettingsToKernel(
     
     // Disable power button sleep on PowerMacs, Cubes, and iMacs
     // Default is false == power button causes sleep
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMSleepOnPowerButtonKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMSleepOnPowerButtonKey), providing_power))
     {
         ret = IORegistryEntrySetCFProperty(PMRootDomain, 
                     CFSTR(kIOPMSettingSleepOnPowerButtonKey), 
@@ -607,7 +607,7 @@ static int sendEnergySettingsToKernel(
     
     // Wakeup on clamshell open
     // Default is true == wakeup when the clamshell opens
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnClamshellKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMWakeOnClamshellKey), providing_power))
     {
         ret = IORegistryEntrySetCFProperty(PMRootDomain, 
                                     CFSTR(kIOPMSettingWakeOnClamshellKey), 
@@ -616,7 +616,7 @@ static int sendEnergySettingsToKernel(
 
     // Mobile Motion Module
     // Defaults to on
-    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMMobileMotionModuleKey), NULL))
+    if(true == IOPMFeatureIsAvailable(CFSTR(kIOPMMobileMotionModuleKey), providing_power))
     {
         type = 7;   // kPMMotionSensor defined in Tiger
         IOPMSetAggressiveness(PM_connection, type, p->fMobileMotionModule);
@@ -629,14 +629,17 @@ static int sendEnergySettingsToKernel(
 	ProcessHibernateSettings(dict, PMRootDomain);
     }
 
-    /* PowerStep and Reduce Processor Speed are handled by a separate configd plugin that's
-       watching the SCDynamicStore key State:/IOKit/PowerManagement/CurrentSettings. Changes
-       to the settings notify the configd plugin, which then activates th processor speed settings.
-       Note that IOPMActivatePMPreference updates that key in the SCDynamicStore when we activate
-       new settings. See DynamicPowerStep configd plugin.
+    /* PowerStep and Reduce Processor Speed are handled by a separate configd 
+       plugin that's watching the SCDynamicStore key 
+       State:/IOKit/PowerManagement/CurrentSettings. Changes to the settings 
+       notify the configd plugin, which then activates th processor speed 
+       settings. Note that IOPMActivatePMPreference updates that key in the 
+       SCDynamicStore when we activate new settings. 
+       See DynamicPowerStep configd plugin.
 
-       A separate display manager process handles activating the Reduce Brightness key through
-       the same mechanism desribed above for Reduce Process & Dynamic Power Step.
+       A separate display manager process handles activating the 
+       Reduce Brightness key through the same mechanism desribed above for 
+       Reduce Process & Dynamic Power Step.
     */
     CFRelease(number0);
     CFRelease(number1);
@@ -730,153 +733,146 @@ static int getAggressivenessFactorsFromProfile(
     return 0;
 }
 
+/* Maps a PowerManagement string constant
+ *   -> to its corresponding Supported Feature in IOPMrootDomain
+ */
+static CFStringRef
+supportedNameForPMName( CFStringRef pm_name )
+{
+    if(CFEqual(pm_name, CFSTR(kIOPMDisplaySleepUsesDimKey)))
+    {
+        return CFSTR("DisplayDims");
+    }
+
+    if(CFEqual(pm_name, CFSTR(kIOPMWakeOnLANKey)))
+    {
+        return CFSTR("WakeOnMagicPacket");
+    }
+
+    if(CFEqual(pm_name, CFSTR(kIOPMMobileMotionModuleKey)))
+    {
+        return CFSTR("MobileMotionModule");
+    }
+
+    if( CFEqual(pm_name, CFSTR(kIOHibernateModeKey))
+        || CFEqual(pm_name, CFSTR(kIOHibernateFreeRatioKey))
+        || CFEqual(pm_name, CFSTR(kIOHibernateFreeTimeKey))
+        || CFEqual(pm_name, CFSTR(kIOHibernateFileKey)))
+    {
+        return CFSTR(kIOHibernateFeatureKey);
+    }
+
+    if( CFEqual(pm_name, CFSTR(kIOPMReduceSpeedKey))
+        || CFEqual(pm_name, CFSTR(kIOPMDynamicPowerStepKey)) 
+        || CFEqual(pm_name, CFSTR(kIOPMWakeOnRingKey))
+        || CFEqual(pm_name, CFSTR(kIOPMRestartOnPowerLossKey))
+        || CFEqual(pm_name, CFSTR(kIOPMWakeOnACChangeKey))
+        || CFEqual(pm_name, CFSTR(kIOPMWakeOnClamshellKey)) 
+        || CFEqual(pm_name, CFSTR(kIOPMReduceBrightnessKey)) )
+    {
+        return pm_name;
+    }
+
+    return NULL;
+}
+
+// Helper for IOPMFeatureIsAvailable
+static bool
+featureSupportsPowerSource(CFTypeRef featureDetails, CFStringRef power_source)
+{
+    CFNumberRef         featureNum   = NULL;
+    CFNumberRef         tempNum      = NULL;
+    CFArrayRef          featureArr   = NULL;
+    uint32_t            ps_support   = 0;
+    uint32_t            tmp;
+    unsigned int        i;
+    
+    if(!power_source) {
+        // Lack of a defined power source just gets a "true" return
+        // if the setting is supported on ANY power source.
+        return true;
+    }
+    
+    if( (featureNum = isA_CFNumber(featureDetails)) )
+    {
+        CFNumberGetValue(featureNum, kCFNumberSInt32Type, &ps_support);
+    } else if( (featureArr = isA_CFArray(featureDetails)) )
+    {
+        // If several entitites are asserting a given feature, we OR
+        // together their supported power sources.
+
+        unsigned int arrayCount = CFArrayGetCount(featureArr);
+        for(i = 0; i<arrayCount; i++)
+        {
+            tempNum = isA_CFNumber(CFArrayGetValueAtIndex(featureArr, i));
+            if(tempNum) {
+                CFNumberGetValue(tempNum, kCFNumberSInt32Type, &tmp);
+                ps_support |= tmp;
+            }
+        }
+    }
+
+    if(CFEqual(CFSTR(kIOPMACPowerKey), power_source) )
+    {
+        return (ps_support & kIOPMSupportedOnAC) ? true : false;
+    } else if(CFEqual(CFSTR(kIOPMBatteryPowerKey), power_source) )
+    {
+        return (ps_support & kIOPMSupportedOnBatt) ? true : false;
+    } else if(CFEqual(CFSTR(kIOPMUPSPowerKey), power_source) )
+    {
+        return (ps_support & kIOPMSupportedOnUPS) ? true : false;
+    } else {
+        // unexpected power source argument
+        return false;
+    }
+
+}
+
 /*** IOPMFeatureIsAvailable
      Arguments-
-        CFStringRef f - Name of a PM feature/Energy Saver checkbox feature (like "WakeOnRing" or "Reduce Processor Speed")
-        CFStringRef power_source - The current power source (like "AC Power" or "Battery Power")
+        CFStringRef PMFeature - Name of a PM feature
+                (like "WakeOnRing" or "Reduce Processor Speed")
+        CFStringRef power_source - The current power source 
+                  (like "AC Power" or "Battery Power")
      Return value-
-        kIOReturnSuccess if the given PM feature is supported on the given power source
-        kIOReturnError if the feature is unsupported
+        true if the given PM feature is supported on the given power source
+        false if the feature is unsupported
  ***/
-bool IOPMFeatureIsAvailable(CFStringRef f, CFStringRef power_source)
+bool IOPMFeatureIsAvailable(CFStringRef PMFeature, CFStringRef power_source)
 {
     CFDictionaryRef		        supportedFeatures = NULL;
-    CFArrayRef                  tmp_array;
+    CFStringRef                 supportedString = NULL;
+    CFTypeRef                   featureDetails = NULL;
+    CFArrayRef                  tmp_array = NULL;
+
     io_registry_entry_t		    registry_entry = MACH_PORT_NULL;
     bool                        ret = false;
 
-    registry_entry = IORegistryEntryFromPath(0, 
-            kIOPowerPlane ":/IOPowerConnection/IOPMrootDomain");
-    if(!registry_entry) goto IOPMFeatureIsAvailable_exitpoint;
+    registry_entry = getPMRootDomainRef();
+    if(!registry_entry) goto exit;
     
-    supportedFeatures = IORegistryEntryCreateCFProperty(registry_entry, CFSTR("Supported Features"),
-                            kCFAllocatorDefault, kNilOptions);
+    supportedFeatures = IORegistryEntryCreateCFProperty(
+                registry_entry, CFSTR("Supported Features"),
+                kCFAllocatorDefault, kNilOptions);
     IOObjectRelease(registry_entry);
     
-    if(CFEqual(f, CFSTR(kIOPMDisplaySleepKey))
-        || CFEqual(f, CFSTR(kIOPMSystemSleepKey))
-        || CFEqual(f, CFSTR(kIOPMDiskSleepKey)))
+    if(CFEqual(PMFeature, CFSTR(kIOPMDisplaySleepKey))
+        || CFEqual(PMFeature, CFSTR(kIOPMSystemSleepKey))
+        || CFEqual(PMFeature, CFSTR(kIOPMDiskSleepKey)))
     {
         ret = true;
-        goto IOPMFeatureIsAvailable_exitpoint;
+        goto exit;
     }
 
-    // Reduce Brightness
-    if(CFEqual(f, CFSTR(kIOPMReduceBrightnessKey)))
-    {
-        // ReduceBrightness feature is only supported on laptops
-        // and on desktops with UPS with brightness-adjustable LCD displays
-        // Luckily these machines report a "DisplayDims" property in the 
-        // supportedFeatures dictionary.
-        // Furthermore, on those machines it's only supported when on Battery or UPS
-        CFTypeRef ps = IOPSCopyPowerSourcesInfo();
-        if( ps &&
-            ( IOPSGetActiveBattery(ps) || IOPSGetActiveUPS(ps) ) &&
-            supportedFeatures &&
-            CFDictionaryGetValue(supportedFeatures, CFSTR("DisplayDims")) &&
-            (kCFCompareEqualTo != 
-                 CFStringCompare(power_source, CFSTR(kIOPMACPowerKey), 0)) ) 
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
+// *********************************
+// Special case for PowerButtonSleep    
 
-        if(ps) CFRelease(ps);
-
-        goto IOPMFeatureIsAvailable_exitpoint;       
-    }
-
-    // Display Sleep Uses Dim
-    if(CFEqual(f, CFSTR(kIOPMDisplaySleepUsesDimKey)))
+    if(CFEqual(PMFeature, CFSTR(kIOPMSleepOnPowerButtonKey)))
     {
-        if(supportedFeatures && CFDictionaryGetValue(supportedFeatures, CFSTR("DisplayDims")))
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
-        goto IOPMFeatureIsAvailable_exitpoint;       
-    }
-
-    // reduce processor speed
-    if(CFEqual(f, CFSTR(kIOPMReduceSpeedKey)))
-    {
-        if(!supportedFeatures) return false;
-        if(CFDictionaryGetValue(supportedFeatures, f))
-            ret = true;
-        else ret = false;
-        goto IOPMFeatureIsAvailable_exitpoint;
-    }
-
-    // dynamic powerstep
-    if(CFEqual(f, CFSTR(kIOPMDynamicPowerStepKey)))
-    {
-        if(!supportedFeatures) return false;
-        if(CFDictionaryGetValue(supportedFeatures, f))
-            ret = true;
-        else ret = false;
-        goto IOPMFeatureIsAvailable_exitpoint;
-    }
-
-    // wake on magic packet
-    if(CFEqual(f, CFSTR(kIOPMWakeOnLANKey)))
-    {
-        // Check for WakeOnLAN property in supportedFeatures
-        // Radar 2946434 WakeOnLAN is only supported when running on AC power. It's automatically disabled
-        // on battery power, and thus shouldn't be offered as a checkbox option.
-        if(supportedFeatures && CFDictionaryGetValue(supportedFeatures, CFSTR("WakeOnMagicPacket"))
-                && (!power_source || !CFEqual(CFSTR(kIOPMBatteryPowerKey), power_source)))
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
-        goto IOPMFeatureIsAvailable_exitpoint;       
-    }
-
-    if(CFEqual(f, CFSTR(kIOPMWakeOnRingKey)))
-    {
-        if(supportedFeatures && CFDictionaryGetValue(supportedFeatures, CFSTR("WakeOnRing")))
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
-        goto IOPMFeatureIsAvailable_exitpoint;        
-    }
-
-    // restart on power loss
-    if(CFEqual(f, CFSTR(kIOPMRestartOnPowerLossKey)))
-    {
-        if(supportedFeatures && CFDictionaryGetValue(supportedFeatures, CFSTR("FileServer")))
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
-        goto IOPMFeatureIsAvailable_exitpoint;
-    }
-    
-    // Wake on AC change
-    if(CFEqual(f, CFSTR(kIOPMWakeOnACChangeKey)))
-    {
-    	// Not a typo, ApplePMU has "ACchange" not "ACChange" :
-        if(supportedFeatures && CFDictionaryGetValue(supportedFeatures, CFSTR("WakeOnACchange")))
-        {
-            ret = true;
-        } else {
-            ret = false;
-        }
-        goto IOPMFeatureIsAvailable_exitpoint;
-    }
-
-    // Disable power button sleep
-    if(CFEqual(f, CFSTR(kIOPMSleepOnPowerButtonKey)))
-    {
-        // Pressing the power button only causes sleep on desktop PowerMacs, cubes, and iMacs
-        // Therefore this feature is not supported on portables, just on desktops.
-        // We'll use the presence of a battery (or the capability for a battery, as interpreted by the PMU)
+        // Pressing the power button only causes sleep on desktop PowerMacs, 
+        // cubes, and iMacs.
+        // Therefore this feature is not supported on portables.
+        // We'll use the presence of a battery (or the capability for a battery) 
         // as evidence whether this is a portable or not.
         IOReturn r = IOPMCopyBatteryInfo(kIOMasterPortDefault, &tmp_array);
         if((r == kIOReturnSuccess) && tmp_array) 
@@ -884,42 +880,62 @@ bool IOPMFeatureIsAvailable(CFStringRef f, CFStringRef power_source)
             CFRelease(tmp_array);
             ret = false;
         } else ret = true;        
-        goto IOPMFeatureIsAvailable_exitpoint;
+        goto exit;
     }
     
-    // Disable clamshell wakeup
-    if(CFEqual(f, CFSTR(kIOPMWakeOnClamshellKey)))
+// *********************************
+// Special case for ReduceBrightness
+    
+    if ( CFEqual(PMFeature, CFSTR(kIOPMReduceBrightnessKey)) )
     {
-        if(!supportedFeatures) return false;
-        if(CFDictionaryGetValue(supportedFeatures, CFSTR("WakeOnLid")))
+        // ReduceBrightness feature is only supported on laptops
+        // and on desktops with UPS with brightness-adjustable LCD displays.
+        // These machines report a "DisplayDims" property in the 
+        // supportedFeatures dictionary.
+        // ReduceBrightness is never supported on AC Power.
+        CFTypeRef ps = IOPSCopyPowerSourcesInfo();
+        if( ps 
+            && ( IOPSGetActiveBattery(ps) || IOPSGetActiveUPS(ps) ) 
+            && supportedFeatures
+            && CFDictionaryGetValue(supportedFeatures, CFSTR("DisplayDims"))
+            && !CFEqual(power_source, CFSTR(kIOPMACPowerKey)) )
+        {
             ret = true;
-        else ret = false;
-        goto IOPMFeatureIsAvailable_exitpoint;
+        } else {
+            ret = false;
+        }
+
+        if(ps) CFRelease(ps);
+        goto exit;
     }
 
-    if(CFEqual(f, CFSTR(kIOHibernateModeKey))
-     || CFEqual(f, CFSTR(kIOHibernateFreeRatioKey))
-     || CFEqual(f, CFSTR(kIOHibernateFreeTimeKey))
-     || CFEqual(f, CFSTR(kIOHibernateFileKey)))
-    {
-        if(!supportedFeatures) return false;
-        if(CFDictionaryGetValue(supportedFeatures, CFSTR(kIOHibernateFeatureKey)))
-            ret = true;
-        else ret = false;
-        goto IOPMFeatureIsAvailable_exitpoint;
+// ***********************************
+// Generic code for all other settings    
+    
+    if(!supportedFeatures) {
+        ret = false;
+        goto exit;
     }
+    
+    supportedString = supportedNameForPMName( PMFeature );
+    if(!supportedString) {
+        ret = false;
+        goto exit;
+    }
+    
+    featureDetails = CFDictionaryGetValue(supportedFeatures, supportedString);
+    if(!featureDetails) {
+        ret = false;
+        goto exit;
+    }
+    
+    if(featureSupportsPowerSource(featureDetails, power_source))
+    {
+        ret = true;    
+    }
+    
 
-    // Mobile Motion Module hard drive protector
-    if(CFEqual(f, CFSTR(kIOPMMobileMotionModuleKey)))
-    {
-        if(!supportedFeatures) return false;
-        if(CFDictionaryGetValue(supportedFeatures, CFSTR("MobileMotionModule")))
-            ret = true;
-        else ret = false;
-        goto IOPMFeatureIsAvailable_exitpoint;
-    }
-        
- IOPMFeatureIsAvailable_exitpoint:
+exit:
     if(supportedFeatures) CFRelease(supportedFeatures);
     return ret;
 }
@@ -944,7 +960,8 @@ static void IOPMRemoveIrrelevantProperties(CFMutableDictionaryRef energyPrefs)
     ps_snapshot = IOPSCopyPowerSourcesInfo();
     
     /*
-     * Remove features when not supported - Wake On Administrative Access, Dynamic Speed Step, etc.
+     * Remove features when not supported - 
+     *      Wake On Administrative Access, Dynamic Speed Step, etc.
      */
     profile_count = CFDictionaryGetCount(energyPrefs);
     profile_keys = (CFStringRef *)malloc(sizeof(CFStringRef) * profile_count);
@@ -1193,7 +1210,7 @@ failure_exit:
 // TODO: Migrate this into PM daemon
 IOReturn IOPMActivatePMPreference(CFDictionaryRef SystemProfiles, CFStringRef profile)
 {
-    IOPMAggressivenessFactors	*agg = NULL;
+    IOPMAggressivenessFactors       *agg = NULL;
     CFDictionaryRef                 activePMPrefs = NULL;
     CFDictionaryRef                 newPMPrefs = NULL;
     SCDynamicStoreRef               dynamic_store = NULL;
@@ -1238,7 +1255,7 @@ IOReturn IOPMActivatePMPreference(CFDictionaryRef SystemProfiles, CFStringRef pr
 IOReturn IOPMSetPMPreferences(CFDictionaryRef ESPrefs)
 {
     IOReturn                    ret = kIOReturnError;
-    SCPreferencesRef	        energyPrefs = NULL;
+    SCPreferencesRef            energyPrefs = NULL;
     
     energyPrefs = SCPreferencesCreate( kCFAllocatorDefault, kIOPMAppName, kIOPMPrefsPath );
     if(!energyPrefs) return kIOReturnError;
@@ -1344,7 +1361,7 @@ static void mergeDictIntoMutable(
  */
 static CFArrayRef      _copySystemProvidedProfiles()
 {
-    io_registry_entry_t		    registry_entry = MACH_PORT_NULL;
+    io_registry_entry_t         registry_entry = MACH_PORT_NULL;
     CFTypeRef                   cftype_total_prof_override = NULL;
     CFTypeRef                   cftype_overrides = NULL;
     CFArrayRef                  retArray = NULL;
@@ -1811,7 +1828,7 @@ exit:
 
 CFDictionaryRef     IOPMCopyActivePowerProfiles(void)
 {
-    SCPreferencesRef	        energyPrefs = NULL;
+    SCPreferencesRef            energyPrefs = NULL;
     CFDictionaryRef             tmp = NULL;
     CFDictionaryRef             tmp_custom = NULL;
     CFDictionaryRef             defaultProfiles = NULL;
@@ -1946,7 +1963,7 @@ typedef struct {
 
 /* SCDynamicStoreCallback */
 static void ioCallout(SCDynamicStoreRef store, CFArrayRef keys, void *ctxt) {
-    user_callback_context	*c; 
+    user_callback_context   *c; 
     IOPowerSourceCallbackType cb;
 
     c = (user_callback_context *)CFDataGetBytePtr((CFDataRef)ctxt);

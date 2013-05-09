@@ -173,6 +173,12 @@ bool IOPMFeatureIsAvailable(CFStringRef feature, CFStringRef power_source);
 // Keeps the CPU at its highest level
 #define kIOPMCPUBoundAssertion                    CFSTR("CPUBoundAssertion")
 
+// Disables AC Power Inflow (requires root to initiate)
+#define kIOPMInflowDisableAssertion               CFSTR("DisableInflow")
+
+// Disables battery charging (requires root to initiate)
+#define kIOPMChargeInhibitAssertion               CFSTR("ChargeInhibit")
+
 // UNSUPPORTED: kIOPMPreventIdleSleepAssertion is UNSUPPORTED in 10.4
 #define kIOPMPreventIdleSleepAssertion            CFSTR("NoIdleSleepAssertion")
 

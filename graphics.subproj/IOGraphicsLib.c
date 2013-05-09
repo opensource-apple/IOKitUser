@@ -1210,6 +1210,9 @@ IOFBBuildModeList( IOFBConnectRef connectRef )
 
     if (connectRef->scalerInfo)
     {
+	// no downscaling
+	connectRef->scalerInfo->scalerFeatures &= ~kIOScaleCanDownSamplePixels;
+
 	DEBG(connectRef, "FB scaler info: (%ld x %ld), features %08lx\n",
 		connectRef->scalerInfo->maxHorizontalPixels, 
 		connectRef->scalerInfo->maxVerticalPixels, 

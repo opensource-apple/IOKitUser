@@ -463,6 +463,14 @@ kload_error __kload_keep_symbols(dgraph_entry_t * entry)
     if (entry->symbols)
 	return kload_error_none;
 
+   /* Adding check for lack of linked_image per PR 4580790.
+    * This condition should probably be caught earlier.
+    */
+    if (!entry->linked_image) {
+        kload_log_error("warning: no linked image file for %s" KNL, entry->name);
+        return kload_error_none;
+    }
+
     hdr   = entry->linked_image;
     ncmds = hdr->ncmds;
     seg   = (struct segment_command *)(hdr + 1);

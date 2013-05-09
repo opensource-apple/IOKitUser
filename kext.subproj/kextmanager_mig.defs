@@ -11,8 +11,13 @@ import <IOKit/kext/kextmanager_types.h>;
 import <mach/kmod.h>;
 import <sys/param.h>;
 
+
+// it's unfortunate that we have to duplicate typedefs
+// everything here also has to match kextmanager_types.h
 type kext_result_t = int;
 
+// length must match DEVMAXPATHSIZE (devfsdefs.h)
+type dev_path_t = array [128] of char;
 // length limit chosen arbitrarily
 type property_key_t = array [128] of char;
 // length must match KMOD_MAX_NAME from <mach/kmod.h>
@@ -24,7 +29,7 @@ type posix_path_t = array [1024] of char;
  * serialized XML data (server->client)
  */
 type xmlDataOut = ^ array [] of MACH_MSG_TYPE_BYTE
-	ctype : xmlDataOut_t;
+        ctype : xmlDataOut_t;
 type xmlDataIn = ^ array [] of MACH_MSG_TYPE_BYTE
         ctype : xmlDataIn_t;
 type AuthRefIn = struct [8] of unsigned32
@@ -57,3 +62,26 @@ routine kextmanager_get_logged_in_userid(
 routine kextmanager_record_nonsecure_kextload(
     server           : mach_port_t;
     load_data        : xmlDataIn);
+
+// trylock semantic (busy -> lockstatus == EBUSY)
+routine kextmanager_lock_volume(
+    server           : mach_port_t;
+    clientPort       : mach_port_make_send_t;
+    volDev           : dev_path_t;
+    out lockstatus   : int
+);
+
+routine kextmanager_unlock_volume(
+    server           : mach_port_t;
+    clientPort       : mach_port_make_send_t;
+    volDev           : dev_path_t;
+    exitStatus       : int
+);
+
+// reboot blocking
+routine kextmanager_lock_reboot(
+    server           : mach_port_t;
+    clientPort       : mach_port_make_send_t;
+    out busyDev      : dev_path_t;                // if available
+    out busyStatus   : int
+);

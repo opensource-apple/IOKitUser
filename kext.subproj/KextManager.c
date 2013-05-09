@@ -9,7 +9,6 @@
 #include <syslog.h>
 #include <stdarg.h>
 
-static const char * KEXTD_SERVER_NAME = "com.apple.KernelExtensionServer";
 static kern_return_t get_kextd_port(mach_port_t *kextd_port); // internal convenience function
 
 CFURLRef KextManagerCreateURLForBundleIdentifier(
