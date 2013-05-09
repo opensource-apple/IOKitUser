@@ -7,12 +7,12 @@
 # and Makefile.postamble (both optional), and Makefile will include them.
 #
 
-NAME = ups
+NAME = ps
 
 PROJECTVERSION = 2.8
 PROJECT_TYPE = Component
-
-HFILES = IOUPSKeys.h
+CFILES = IOPowerSources.c
+HFILES = IOPSKeys.h IOPowerSources.h
 
 OTHERSRCS = Makefile.preamble Makefile
 
@@ -25,7 +25,7 @@ LIBS =
 DEBUG_LIBS = $(LIBS)
 PROF_LIBS = $(LIBS)
 
-PUBLIC_HEADERS = IOUPSKeys.h
+PUBLIC_HEADERS = IOPSKeys.h IOPowerSources.h
 
 
 NEXTSTEP_BUILD_OUTPUT_DIR = /$(USER)/build/$(NAME)

@@ -1,7 +1,8 @@
 {
     DYNAMIC_CODE_GEN = YES; 
     FILESTABLE = {
-        H_FILES = (IOUPSKeys.h); 
+        H_FILES = (IOPSKeys.h, IOPowerSources.h); 
+        C_FILES = (IOPowerSources.c);
         OTHER_LINKED = (); 
         OTHER_SOURCES = (Makefile.preamble, Makefile); 
         PROJECT_HEADERS = (); 
@@ -18,7 +19,7 @@
     PDO_UNIX_BUILDTOOL = $NEXT_ROOT/Developer/bin/make; 
     PDO_UNIX_JAVA_COMPILER = "$(JDKBINDIR)/javac"; 
     PDO_UNIX_OBJCPLUS_COMPILER = "$(NEXTDEV_BIN)/gcc"; 
-    PROJECTNAME = ups; 
+    PROJECTNAME = ps; 
     PROJECTTYPE = Component; 
     PROJECTVERSION = 2.8; 
     WINDOWS_BUILDTOOL = $NEXT_ROOT/Developer/Executables/make; 
