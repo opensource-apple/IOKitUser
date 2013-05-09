@@ -1479,10 +1479,6 @@ InstallTiming( IOFBConnectRef                connectRef,
     if (InvalidTiming(connectRef, timing))
 	return (kIOReturnUnsupportedMode);
 
-    err = IOCheckTimingWithDisplay( connectRef, desc, modeGenFlags );
-    if (kIOReturnUnsupportedMode == err)
-        return( err );
-
     if ((kIOFBEDIDStdEstMode | kIOFBEDIDDetailedMode) & modeGenFlags)
     {
 	if ((0xffffffff == connectRef->dimensions.width)
@@ -1492,7 +1488,12 @@ InstallTiming( IOFBConnectRef                connectRef,
 	 || (timing->detailedInfo.v2.verticalActive > connectRef->dimensions.height))
 	    connectRef->dimensions.height = timing->detailedInfo.v2.verticalActive;
     }
-    else
+
+    err = IOCheckTimingWithDisplay( connectRef, desc, modeGenFlags );
+    if (kIOReturnUnsupportedMode == err)
+        return( err );
+
+    if (0 == ((kIOFBEDIDStdEstMode | kIOFBEDIDDetailedMode) & modeGenFlags))
     {
 	if( (timing->detailedInfo.v2.horizontalActive > connectRef->dimensions.width)
 	    || (timing->detailedInfo.v2.verticalActive > connectRef->dimensions.height)) {

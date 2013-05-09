@@ -320,6 +320,8 @@ ProcessHibernateSettings(CFDictionaryRef dict, io_registry_entry_t rootDomain)
 {
     IOReturn	ret;
     CFTypeRef	obj;
+    CFNumberRef modeNum;
+    SInt32      modeValue = 0;
     CFURLRef	url = NULL;
     Boolean	createFile = false;
     Boolean	haveFile = false;
@@ -331,7 +333,14 @@ ProcessHibernateSettings(CFDictionaryRef dict, io_registry_entry_t rootDomain)
     fstore_t	prealloc;
     uint64_t	filesize;
 
-    if ((obj = CFDictionaryGetValue(dict, CFSTR(kIOHibernateFileKey)))
+    if ((modeNum = CFDictionaryGetValue(dict, CFSTR(kIOHibernateModeKey)))
+      && isA_CFNumber(modeNum))
+	CFNumberGetValue(modeNum, kCFNumberSInt32Type, &modeValue);
+    else
+	modeNum = NULL;
+
+    if (modeValue
+      && (obj = CFDictionaryGetValue(dict, CFSTR(kIOHibernateFileKey)))
       && isA_CFString(obj))
     do
     {
@@ -431,6 +440,7 @@ ProcessHibernateSettings(CFDictionaryRef dict, io_registry_entry_t rootDomain)
 #define kBootXPath		"/System/Library/CoreServices/BootX"
 #define kBootXSignaturePath	"/System/Library/Caches/com.apple.bootxsignature"
 #endif
+#define kCachesPath		"/System/Library/Caches"
 #define	kGenSignatureCommand	"/bin/cat " kBootXPath " | /usr/bin/openssl dgst -sha1 -hex -out " kBootXSignaturePath
 
 
@@ -443,6 +453,12 @@ ProcessHibernateSettings(CFDictionaryRef dict, io_registry_entry_t rootDomain)
         if ((0 != stat(kBootXSignaturePath, &bootsignature_stat_buf))
          || (bootsignature_stat_buf.st_mtime != bootx_stat_buf.st_mtime))
         {
+	    if (-1 == stat(kCachesPath, &bootsignature_stat_buf))
+	    {
+		mkdir(kCachesPath, 0777);
+		chmod(kCachesPath, 0777);
+	    }
+
             // generate signature file
             if (0 != system(kGenSignatureCommand))
                break;
@@ -475,11 +491,9 @@ ProcessHibernateSettings(CFDictionaryRef dict, io_registry_entry_t rootDomain)
     }
     while (false);
 
-    if ((obj = CFDictionaryGetValue(dict, CFSTR(kIOHibernateModeKey)))
-      && isA_CFNumber(obj))
-    {
-	ret = IORegistryEntrySetCFProperty(rootDomain, CFSTR(kIOHibernateModeKey), obj);
-    }
+    if (modeNum)
+	ret = IORegistryEntrySetCFProperty(rootDomain, CFSTR(kIOHibernateModeKey), modeNum);
+
     if ((obj = CFDictionaryGetValue(dict, CFSTR(kIOHibernateFreeRatioKey)))
       && isA_CFNumber(obj))
     {
