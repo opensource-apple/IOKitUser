@@ -5,17 +5,29 @@
 extern "C" {
 #endif
 
+#ifdef KERNEL
+#include <libsa/stdlib.h>
+#include <IOKit/IOLib.h>
+#else
 #include <stdlib.h>
-
 #include <mach/mach.h>
-#include <CoreFoundation/CoreFoundation.h>
+#endif /* KERNEL */
 
 typedef struct dgraph_entry_t {
 
-    char is_kernel_component; // means that filename is a CFBundleIdentifier!!!
+    char is_kernel_component; // means that name is a CFBundleIdentifier!!!
+    char is_symbol_set; 
+    char opaques;
+    char opaque_link;
 
     // What we have to start from
-    char * filename;
+    char * name;   // filename if user space, bundleid if kernel or kernel comp.
+
+    void * object;         // In kernel we keep track of the object file
+    size_t object_length;  //    we don't own this, however; it's just a ref
+#ifdef KERNEL
+    bool   object_is_kmem; // Only used when mapping a file!
+#endif /* KERNEL */
 
    /* If is_kernel_component is true then the do_load field is cleared and
     * the kmod_id field gets set.
@@ -26,16 +38,26 @@ typedef struct dgraph_entry_t {
     unsigned int num_dependencies;
     struct dgraph_entry_t ** dependencies;
 
-    // These are filled in when the entry is created, and must match
-    // what is found in the kmod binary itself.
+    // These are filled in when the entry is created, and are written into
+    // the kmod linked image at load time.
     char * expected_kmod_name;
-    UInt32 expected_kmod_vers;  // parsed, or course
+    char * expected_kmod_vers;
 
-    kmod_info_t * kmod_info;    // from disk image, *not* link/loaded data
+    bool is_mapped;  // kld_file_map() has been called for this entry
 
     // For tracking already-loaded kmods or for doing symbol generation only
     int do_load;   // actually loading
     vm_address_t loaded_address;  // address loaded at or being faked at for symbol generation
+#ifndef KERNEL
+    char * link_output_file;
+    bool link_output_file_alloc;
+#endif
+    struct mach_header * linked_image;
+    vm_size_t	 linked_image_length;
+
+    vm_address_t symbols;
+    vm_size_t	 symbols_length;
+    vm_address_t symbols_malloc;
 
     // for loading into kernel
     vm_address_t  kernel_alloc_address;
@@ -55,6 +77,11 @@ typedef struct {
     dgraph_entry_t ** graph;
     dgraph_entry_t ** load_order;
     dgraph_entry_t  * root;
+    char	      have_loaded_symbols;
+    char	      has_symbol_sets;
+    char	      has_opaque_links;
+    vm_address_t      opaque_base_image;
+    vm_size_t	      opaque_base_length;
 } dgraph_t;
 
 typedef enum {
@@ -66,6 +93,7 @@ typedef enum {
 
 dgraph_error_t dgraph_init(dgraph_t * dgraph);
 
+#ifndef KERNEL
 /**********
  * Initialize a dependency graph passed in. Returns nonzero on success, zero
  * on failure.
@@ -88,6 +116,7 @@ dgraph_error_t dgraph_init_with_arglist(
     const char * kernel_dependency_delimiter,
     int argc,
     char * argv[]);
+#endif /* not KERNEL */
 
 void dgraph_free(
     dgraph_t * dgraph,
@@ -97,30 +126,41 @@ dgraph_entry_t * dgraph_find_root(dgraph_t * dgraph);
 
 int dgraph_establish_load_order(dgraph_t * dgraph);
 
-void dgraph_verify(char * tag, dgraph_t * dgraph);
+#ifndef KERNEL
 void dgraph_print(dgraph_t * dgraph);
+#endif /* not kernel */
 void dgraph_log(dgraph_t * depgraph);
 
 
 /*****
  * These functions are useful for hand-building a dgraph.
  */
-dgraph_entry_t * dgraph_find_dependent(dgraph_t * dgraph, const char * filename);
+dgraph_entry_t * dgraph_find_dependent(dgraph_t * dgraph, const char * name);
 
 dgraph_entry_t * dgraph_add_dependent(
     dgraph_t * dgraph,
-    const char * filename,
+    const char * name,
+#ifdef KERNEL
+    void * object,
+    size_t object_length,
+    bool   object_is_kmem,
+#endif /* KERNEL */
     const char * expected_kmod_name,
-    UInt32 expected_kmod_vers,
+    const char * expected_kmod_vers,
     vm_address_t load_address,
     char is_kernel_component);
 
-int dgraph_add_dependency(
+dgraph_entry_t * dgraph_add_dependency(
     dgraph_t * dgraph,
     dgraph_entry_t * current_dependent,
-    const char * filename,
+    const char * name,
+#ifdef KERNEL
+    void * object,
+    size_t object_length,
+    bool   object_is_kmem,
+#endif /* KERNEL */
     const char * expected_kmod_name,
-    UInt32 expected_kmod_vers,
+    const char * expected_kmod_vers,
     vm_address_t load_address,
     char is_kernel_component);
 
@@ -128,4 +168,4 @@ int dgraph_add_dependency(
 }
 #endif
 
-#endif __DGRAPH_H__
+#endif /* __DGRAPH_H__ */
