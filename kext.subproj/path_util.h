@@ -1,9 +1,11 @@
-#ifndef __PATHS_H__
-#define __PATHS_H__
+#if !__LP64__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef __PATH_UTIL_H__
+#define __PATH_UTIL_H__
+
+#include <sys/cdefs.h>
+
+__BEGIN_DECLS
 
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -11,12 +13,11 @@ CFURLRef PATH_CopyCanonicalizedURL(CFURLRef anURL);
 CFURLRef PATH_CopyCanonicalizedURLAndSetDirectory(
     CFURLRef anURL, Boolean isDirectory);
 
-char *   PATH_CanonicalizedCStringForURL(CFURLRef anURL);
+char * PATH_CanonicalizedCStringForURL(CFURLRef anURL);
 
 char * PATH_canonicalizeCStringPath(const char * path);
 
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 
-#endif __PATHS_H__
+#endif __PATH_UTIL_H__
+#endif // !__LP64__

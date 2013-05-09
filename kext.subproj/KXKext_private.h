@@ -1,15 +1,18 @@
+#if !__LP64__
+
 #ifndef __KXKEXT_PRIVATE_H__
 #define __KXKEXT_PRIVATE_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <sys/cdefs.h>
+
+__BEGIN_DECLS
 
 #include "KXKext.h"
 #include "KXKextManager_private.h"
 #include "KXKextRepository_private.h"
 #include "dgraph.h"
 #include "vers_rsrc.h"
+#include "fat_util.h"
 
 
 /*******************************************************************************
@@ -54,8 +57,11 @@ KXKextManagerError _KXKextInitWithCacheDictionaryInRepository(
     CFDictionaryRef aDictionary,
     KXKextRepositoryRef aRepository);
 
-const char * _KXKextCopyCanonicalPathnameAsCString(KXKextRef aKext);
-const char * _KXKextCopyBundlePathInRepositoryAsCString(KXKextRef aKext);
+char * _KXKextCopyCanonicalPathnameAsCString(KXKextRef aKext);
+char * _KXKextCopyBundlePathInRepositoryAsCString(KXKextRef aKext);
+char * _KXKextCopyExecutableCanonicalPathnameAsCString(KXKextRef aKext);
+
+fat_iterator _KXKextCopyFatIterator(KXKextRef aKext);
 
 KXKextManagerLogLevel _KXKextGetLogLevel(KXKextRef aKext);
 
@@ -101,8 +107,7 @@ KXKextManagerError _KXKextCheckIntegrity(KXKextRef aKext, CFMutableArrayRef bomA
 void _KXKextSetStartAddress(KXKextRef aKext, vm_address_t newAddr);
 
 
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 
 #endif __KXKEXT_PRIVATE_H__
+#endif // !__LP64__

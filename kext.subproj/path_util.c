@@ -1,6 +1,8 @@
+#if !__LP64__
+
 #include <libc.h>
 #include <string.h>
-#include "paths.h"
+#include "path_util.h"
 
 typedef struct {
     unsigned int capacity;
@@ -201,7 +203,9 @@ char *   PATH_CanonicalizedCStringForURL(CFURLRef anURL)
     if (!absolutePath) {
         goto finish;
     }
-    if (!CFStringGetFileSystemRepresentation(absolutePath, path, CFStringGetMaximumSizeOfFileSystemRepresentation(absolutePath))) {
+    if (!CFStringGetFileSystemRepresentation(absolutePath, path,
+        sizeof(path))) {
+
         goto finish;
     }
 
@@ -315,6 +319,7 @@ patharray_t * canonicalize_patharray(patharray_t * patharray)
     if (!patharray_is_absolute(patharray)) {
         string = getcwd(NULL, 0);
         if (!string) {
+            fprintf(stderr, "can't get current working directory\n");
             error = 1;
             goto finish;
         }
@@ -371,6 +376,7 @@ char * assemble_path(patharray_t * patharray)
     char * newpath = NULL;
     unsigned int i;
     size_t length = 0;
+    size_t newPathSize = 0;
 
     for (i = 0; i < patharray->length; i++) {
         size_t clength = strlen(patharray->elements[i]);
@@ -380,7 +386,8 @@ char * assemble_path(patharray_t * patharray)
         length = 2;
     }
 
-    newpath = (char *)malloc(sizeof(char) * (length+1));
+    newPathSize = sizeof(char) * (length+1);
+    newpath = (char *)malloc(newPathSize);
     if (!newpath) {
         error = 1;
         goto finish;
@@ -388,13 +395,13 @@ char * assemble_path(patharray_t * patharray)
 
     newpath[0] = '\0';
     if (patharray_is_root(patharray)) {
-        strcat(newpath, "/");
+        strlcat(newpath, "/", newPathSize);
     } else {
         for (i = 0; i < patharray->length; i++) {
             if (i > 0) {
-                strcat(newpath, "/");
+                strlcat(newpath, "/", newPathSize);
             }
-            strcat(newpath, patharray->elements[i]);
+            strlcat(newpath, patharray->elements[i], newPathSize);
         }
     }
 
@@ -407,3 +414,4 @@ finish:
     }
     return newpath;
 }
+#endif // !__LP64__
